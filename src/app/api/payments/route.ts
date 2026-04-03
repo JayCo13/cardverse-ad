@@ -46,26 +46,29 @@ export async function GET(request: Request) {
 
         if (error) throw error;
 
-        // Enrich with user emails
-        const enrichedData = await Promise.all(
-            (data || []).map(async (order) => {
-                let userEmail = 'Unknown';
-                if (order.user_id) {
-                    try {
-                        const { data: userData } = await supabaseAdmin.auth.admin.getUserById(order.user_id);
-                        if (userData?.user?.email) {
-                            userEmail = userData.user.email;
-                        }
-                    } catch (e) {
-                        // ignore missing users
-                    }
+        // Batch user email lookups: deduplicate user IDs and fetch in parallel
+        const uniqueUserIds = [...new Set((data || []).map(o => o.user_id).filter(Boolean))];
+        const emailMap = new Map<string, string>();
+
+        // Fetch all unique users in parallel
+        const userResults = await Promise.all(
+            uniqueUserIds.map(async (userId) => {
+                try {
+                    const { data: userData } = await supabaseAdmin.auth.admin.getUserById(userId);
+                    return { userId, email: userData?.user?.email || 'Unknown' };
+                } catch {
+                    return { userId, email: 'Unknown' };
                 }
-                return {
-                    ...order,
-                    user_email: userEmail
-                };
             })
         );
+        for (const { userId, email } of userResults) {
+            emailMap.set(userId, email);
+        }
+
+        const enrichedData = (data || []).map((order) => ({
+            ...order,
+            user_email: emailMap.get(order.user_id) || 'Unknown',
+        }));
 
         return NextResponse.json({
             payments: enrichedData,

@@ -14,6 +14,13 @@ type Verification = {
     bank_name: string;
     bank_account_number: string;
     bank_account_name: string;
+    bank_screenshot_url?: string;
+    phone_number?: string;
+    ai_cccd_name?: string;
+    ai_bank_name?: string;
+    ai_bank_number?: string;
+    ai_confidence?: number;
+    ai_name_match?: boolean;
     status: string;
     rejection_reason?: string;
     created_at: string;
@@ -147,7 +154,53 @@ export default function KYCPage() {
                                             <p className="text-zinc-500 text-xs">Tên chủ TK</p>
                                             <p className="font-medium text-zinc-800 dark:text-zinc-200">{v.bank_account_name}</p>
                                         </div>
+                                        {v.phone_number && (
+                                            <div className="col-span-2">
+                                                <p className="text-zinc-500 text-xs">Số điện thoại</p>
+                                                <p className="font-medium text-zinc-800 dark:text-zinc-200">{v.phone_number}</p>
+                                            </div>
+                                        )}
                                     </div>
+
+                                    {/* AI Verification Results */}
+                                    {v.ai_confidence !== undefined && v.ai_confidence !== null && (
+                                        <div className={`rounded-lg p-3 border text-sm ${
+                                            v.ai_confidence >= 0.7
+                                                ? 'bg-green-50 dark:bg-green-500/10 border-green-200 dark:border-green-500/20'
+                                                : v.ai_confidence >= 0.5
+                                                ? 'bg-yellow-50 dark:bg-yellow-500/10 border-yellow-200 dark:border-yellow-500/20'
+                                                : 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/20'
+                                        }`}>
+                                            <div className="flex items-center justify-between mb-2">
+                                                <span className="font-semibold text-xs">🤖 AI Verification</span>
+                                                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                                                    v.ai_confidence >= 0.7
+                                                        ? 'bg-green-500/20 text-green-600 dark:text-green-400'
+                                                        : v.ai_confidence >= 0.5
+                                                        ? 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400'
+                                                        : 'bg-red-500/20 text-red-600 dark:text-red-400'
+                                                }`}>
+                                                    {Math.round(v.ai_confidence * 100)}% confidence
+                                                </span>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2 text-xs">
+                                                <div>
+                                                    <span className="text-zinc-500">CCCD: </span>
+                                                    <span className="font-medium">{v.ai_cccd_name || '—'}</span>
+                                                </div>
+                                                <div>
+                                                    <span className="text-zinc-500">Bank: </span>
+                                                    <span className="font-medium">{v.ai_bank_name || '—'}</span>
+                                                </div>
+                                                <div className="col-span-2">
+                                                    <span className="text-zinc-500">Tên khớp: </span>
+                                                    <span className={`font-semibold ${v.ai_name_match ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                                                        {v.ai_name_match ? '✅ Khớp' : '❌ Không khớp'}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
 
                                     <p className="text-xs text-zinc-400">
                                         Gửi lúc: {new Date(v.created_at).toLocaleString('vi-VN')}
@@ -161,11 +214,11 @@ export default function KYCPage() {
                                 </div>
 
                                 {/* ID Images */}
-                                <div className="flex gap-2">
+                                <div className="flex gap-2 flex-wrap">
                                     {[
                                         { url: v.id_card_front_url, label: 'CCCD Trước' },
                                         { url: v.id_card_back_url, label: 'CCCD Sau' },
-                                        { url: v.selfie_url, label: 'Selfie' },
+                                        ...(v.bank_screenshot_url ? [{ url: v.bank_screenshot_url, label: 'App Ngân hàng' }] : []),
                                     ].map(img => (
                                         <div key={img.label} className="text-center">
                                             <button

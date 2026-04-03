@@ -11,42 +11,40 @@ export async function GET() {
     try {
         const supabaseAdmin = createAdminClient();
 
-        // 1. Total Revenue (Sum of 'paid' payment_orders)
-        const { data: payments, error: paymentsError } = await supabaseAdmin
-            .from('payment_orders')
-            .select('amount')
-            .eq('status', 'paid');
+        // Run ALL 4 queries in parallel instead of sequentially
+        const [paymentsResult, subsResult, newsResult, scansResult] = await Promise.all([
+            // 1. Total Revenue (Sum of 'paid' payment_orders)
+            supabaseAdmin
+                .from('payment_orders')
+                .select('amount')
+                .eq('status', 'paid'),
+            // 2. Active Subscriptions
+            supabaseAdmin
+                .from('user_subscriptions')
+                .select('*', { count: 'exact', head: true })
+                .eq('status', 'active'),
+            // 3. Newsletter Subscribers
+            supabaseAdmin
+                .from('newsletter_subscribers')
+                .select('*', { count: 'exact', head: true }),
+            // 4. Total Scans (All time)
+            supabaseAdmin
+                .from('user_scan_history')
+                .select('*', { count: 'exact', head: true }),
+        ]);
 
-        if (paymentsError) throw paymentsError;
-        const totalRevenue = payments.reduce((sum, order) => sum + (order.amount || 0), 0);
+        if (paymentsResult.error) throw paymentsResult.error;
+        if (subsResult.error) throw subsResult.error;
+        if (newsResult.error) throw newsResult.error;
+        if (scansResult.error) throw scansResult.error;
 
-        // 2. Active Subscriptions
-        const { count: activeSubs, error: subsError } = await supabaseAdmin
-            .from('user_subscriptions')
-            .select('*', { count: 'exact', head: true })
-            .eq('status', 'active');
-
-        if (subsError) throw subsError;
-
-        // 3. Newsletter Subscribers
-        const { count: newsletterSubs, error: newsError } = await supabaseAdmin
-            .from('newsletter_subscribers')
-            .select('*', { count: 'exact', head: true });
-
-        if (newsError) throw newsError;
-
-        // 4. Total Scans (All time)
-        const { count: totalScans, error: scansError } = await supabaseAdmin
-            .from('user_scan_history')
-            .select('*', { count: 'exact', head: true });
-
-        if (scansError) throw scansError;
+        const totalRevenue = (paymentsResult.data || []).reduce((sum, order) => sum + (order.amount || 0), 0);
 
         return NextResponse.json({
             totalRevenue,
-            activeSubscriptions: activeSubs || 0,
-            newsletterSubscribers: newsletterSubs || 0,
-            totalScans: totalScans || 0,
+            activeSubscriptions: subsResult.count || 0,
+            newsletterSubscribers: newsResult.count || 0,
+            totalScans: scansResult.count || 0,
         }, { status: 200 });
 
     } catch (error: any) {

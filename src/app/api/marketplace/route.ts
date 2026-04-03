@@ -23,15 +23,15 @@ export async function GET(request: NextRequest) {
             query = query.eq('status', status);
         }
 
-        const { data, error } = await query;
+        // Run orders + stats queries in parallel
+        const [ordersResult, statsResult] = await Promise.all([
+            query,
+            supabase.from('orders').select('status, amount, platform_fee'),
+        ]);
 
-        if (error) throw error;
+        if (ordersResult.error) throw ordersResult.error;
 
-        // Get marketplace stats
-        const { data: allOrders } = await supabase
-            .from('orders')
-            .select('status, amount, platform_fee');
-
+        const allOrders = statsResult.data;
         const stats = {
             total: allOrders?.length || 0,
             completed: allOrders?.filter(o => o.status === 'completed').length || 0,
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
             totalVolume: allOrders?.filter(o => o.status === 'completed').reduce((sum, o) => sum + (o.amount || 0), 0) || 0,
         };
 
-        return NextResponse.json({ orders: data || [], stats });
+        return NextResponse.json({ orders: ordersResult.data || [], stats });
     } catch (error: any) {
         console.error('Admin marketplace error:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });

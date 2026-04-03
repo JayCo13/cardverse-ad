@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Bell, MagnifyingGlass, SignOut, ShieldStar, UserCircle, Sun, Moon } from "@phosphor-icons/react";
+import { Bell, MagnifyingGlass, SignOut, ShieldStar, UserCircle, Sun, Moon, CheckCircle, XCircle, Warning, ShoppingCart, Info } from "@phosphor-icons/react";
 import { createClient } from "@/utils/supabase/client";
 import { useRouter, usePathname } from "next/navigation";
 import { useRole } from "@/context/RoleContext";
@@ -86,15 +86,22 @@ export function Topbar() {
         }
     };
 
-    const getTypeIcon = (type: string) => {
+    const renderTypeIcon = (type: string) => {
         switch (type) {
-            case 'kyc_pending': return '🔔';
-            case 'kyc_approved': return '✅';
-            case 'kyc_rejected': return '❌';
-            case 'dispute': return '⚠️';
-            case 'order': return '🛒';
-            default: return '📌';
+            case 'kyc_pending': return <Bell className="h-6 w-6 text-blue-500 dark:text-blue-400" weight="fill" />;
+            case 'kyc_approved': return <CheckCircle className="h-6 w-6 text-green-500 dark:text-green-400" weight="fill" />;
+            case 'kyc_rejected': return <XCircle className="h-6 w-6 text-red-500 dark:text-red-400" weight="fill" />;
+            case 'dispute': return <Warning className="h-6 w-6 text-orange-500 dark:text-orange-400" weight="fill" />;
+            case 'order': return <ShoppingCart className="h-6 w-6 text-sky-500 dark:text-sky-400" weight="fill" />;
+            default: return <Info className="h-6 w-6 text-zinc-400 dark:text-zinc-500" weight="fill" />;
         }
+    };
+
+    // Helper to strip standard emojis from the beginning of strings
+    const cleanTitle = (title: string) => {
+        if (!title) return '';
+        // Matches common emojis at the start of the string along with trailing spaces
+        return title.replace(/^([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|\u2011-\u26FF|\uD83E[\uDD10-\uDDFF])\s*/g, '').trim();
     };
 
     const getTimeAgo = (dateStr: string) => {
@@ -215,10 +222,12 @@ export function Topbar() {
                                             }`}
                                         >
                                             <div className="flex items-start gap-3">
-                                                <span className="text-lg mt-0.5 flex-shrink-0">{getTypeIcon(n.type)}</span>
+                                                <div className="mt-0.5 flex-shrink-0">
+                                                    {renderTypeIcon(n.type)}
+                                                </div>
                                                 <div className="flex-1 min-w-0">
                                                     <p className={`text-sm font-medium line-clamp-1 ${!n.read ? 'text-zinc-900 dark:text-white' : 'text-zinc-600 dark:text-zinc-400'}`}>
-                                                        {n.title}
+                                                        {cleanTitle(n.title)}
                                                     </p>
                                                     {n.message && (
                                                         <p className="text-xs text-zinc-500 line-clamp-1 mt-0.5">{n.message}</p>

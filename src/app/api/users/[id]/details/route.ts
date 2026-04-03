@@ -20,34 +20,22 @@ export async function GET(
         const { id } = await params;
         const supabaseAdmin = createAdminClient();
 
-        // 1. Fetch User Auth Data
-        const { data: { user }, error: authError } = await supabaseAdmin.auth.admin.getUserById(id);
+        // Run ALL 5 queries in parallel instead of sequentially
+        const [authResult, profileResult, subsResult, scanUsageResult, scanHistoryResult] = await Promise.all([
+            // 1. Fetch User Auth Data
+            supabaseAdmin.auth.admin.getUserById(id),
+            // 2. Fetch User Profile
+            supabaseAdmin.from('profiles').select('*').eq('id', id).single(),
+            // 3. Fetch Subscription Packages
+            supabaseAdmin.from('user_subscriptions').select('*').eq('user_id', id),
+            // 4. Fetch Scan Usage
+            supabaseAdmin.from('user_scan_usage').select('*').eq('user_id', id).single(),
+            // 5. Fetch Scan History
+            supabaseAdmin.from('user_scan_history').select('created_at').eq('user_id', id),
+        ]);
+
+        const { data: { user }, error: authError } = authResult;
         if (authError || !user) throw new Error(authError?.message || 'User not found');
-
-        // 2. Fetch User Profile
-        const { data: profile } = await supabaseAdmin
-            .from('profiles')
-            .select('*')
-            .eq('id', id)
-            .single();
-
-        // 3. Fetch Subscription Packages
-        const { data: subscriptions } = await supabaseAdmin
-            .from('user_subscriptions')
-            .select('*')
-            .eq('user_id', id);
-
-        // 4. Fetch Scan Analytics (Legacy current limit and new Historical Data)
-        const { data: scanUsage } = await supabaseAdmin
-            .from('user_scan_usage')
-            .select('*')
-            .eq('user_id', id)
-            .single();
-
-        const { data: scanHistory } = await supabaseAdmin
-            .from('user_scan_history')
-            .select('created_at')
-            .eq('user_id', id);
 
         // Compute Aggregations based on scanHistory
         const now = new Date();
@@ -59,7 +47,7 @@ export async function GET(
         let scansThisMonth = 0;
         let scansThisYear = 0;
 
-        const historyRecords = scanHistory || [];
+        const historyRecords = scanHistoryResult.data || [];
         historyRecords.forEach(record => {
             const time = new Date(record.created_at).getTime();
             if (time >= startOfDay) scansToday++;
@@ -68,12 +56,13 @@ export async function GET(
         });
 
         // Use the legacy exact count if history is out of sync for today, but default to history
+        const scanUsage = scanUsageResult.data;
         const effectiveToday = Math.max(scansToday, scanUsage?.scan_count || 0);
 
         return NextResponse.json({
             authInfo: user,
-            profile: profile || null,
-            subscriptions: subscriptions || [],
+            profile: profileResult.data || null,
+            subscriptions: subsResult.data || [],
             scanStats: {
                 total: historyRecords.length,
                 today: effectiveToday,
