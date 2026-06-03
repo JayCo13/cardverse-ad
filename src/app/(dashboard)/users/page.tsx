@@ -132,6 +132,28 @@ export default function UsersPage() {
         }
     };
 
+    const handleRoleToggle = async (id: string, email: string, makeAdmin: boolean) => {
+        const confirmMsg = makeAdmin
+            ? `Cấp quyền ADMIN cho ${email}? Họ sẽ đăng nhập được vào trang admin bằng chính tài khoản hiện tại.`
+            : `Thu hồi quyền admin của ${email}? Họ sẽ không vào được trang admin nữa.`;
+        if (!confirm(confirmMsg)) return;
+
+        try {
+            const res = await fetch(`/api/users/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'set_role', role: makeAdmin ? 'admin' : 'user' })
+            });
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                throw new Error(data.error || "Failed to update role");
+            }
+            await loadUsers(currentPage);
+        } catch (err: any) {
+            alert(err.message);
+        }
+    };
+
     const handleCreateAdmin = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsCreating(true);
@@ -307,6 +329,18 @@ export default function UsersPage() {
                                                     <Prohibit className="w-5 h-5" />
                                                 )}
                                             </button>
+                                            {isModerator && (
+                                                <button
+                                                    onClick={() => handleRoleToggle(user.id, user.email, user.app_metadata?.role !== 'admin')}
+                                                    className={`p-2 rounded-lg transition-colors ${user.app_metadata?.role === 'admin'
+                                                        ? 'text-orange-500 hover:text-red-400 hover:bg-red-400/10'
+                                                        : 'text-zinc-500 hover:text-orange-400 hover:bg-orange-400/10'
+                                                        }`}
+                                                    title={user.app_metadata?.role === 'admin' ? 'Thu hồi quyền Admin' : 'Cấp quyền Admin'}
+                                                >
+                                                    <ShieldStar weight={user.app_metadata?.role === 'admin' ? 'fill' : 'regular'} className="w-5 h-5" />
+                                                </button>
+                                            )}
                                             {isModerator && (
                                                 <button
                                                     onClick={() => handleDelete(user.id, user.email)}

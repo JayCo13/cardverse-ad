@@ -45,7 +45,10 @@ export async function updateSession(request: NextRequest) {
     const isApiAuthRoute = request.nextUrl.pathname.startsWith('/api/auth')
 
     const isPublicRoute = isLoginPage || isForgotPasswordPage || isResetPasswordPage || isApiAuthRoute
-    const isAuthenticated = hasModeratorSession || !!user
+    // Shared Supabase project: only users a moderator promoted (app_metadata.role
+    // === 'admin') count as admins. A plain signed-in user is NOT authenticated here.
+    const isAdminUser = !!user && user.app_metadata?.role === 'admin'
+    const isAuthenticated = hasModeratorSession || isAdminUser
 
     if (!isAuthenticated && !isPublicRoute) {
         // If no user, redirect to login page

@@ -60,6 +60,15 @@ export async function PATCH(
             // Supabase uses ban_duration to unban: set to '0' or remove banned_until
             // The proper way is to call updateUserById with ban_duration removed
             updatePayload.user_metadata = { ...(body.user_metadata || {}), banned: false };
+        } else if (body.action === 'set_role') {
+            // Promote an existing user to admin (or revoke): moderator only.
+            // The user keeps their existing credentials and can log into the
+            // admin panel with the account they already have.
+            if (role !== 'moderator') {
+                return NextResponse.json({ error: 'Forbidden. Only Moderators can change user roles.' }, { status: 403 });
+            }
+            // app_metadata is shallow-merged by Supabase; set role to null to revoke.
+            updatePayload.app_metadata = { role: body.role === 'admin' ? 'admin' : null };
         } else {
             // Password reset & metadata updates: moderator only
             if (role !== 'moderator') {

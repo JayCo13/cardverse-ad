@@ -38,7 +38,7 @@ export default function LoginPage() {
             }
 
             // 2. Fall back to Supabase Admin Authentication
-            const { error: supabaseError } = await supabase.auth.signInWithPassword({
+            const { data: signInData, error: supabaseError } = await supabase.auth.signInWithPassword({
                 email,
                 password,
             });
@@ -47,7 +47,15 @@ export default function LoginPage() {
                 throw new Error("Invalid admin or moderator credentials.");
             }
 
-            // Supabase authenticated successfully
+            // This Supabase project is shared with the consumer app, so a valid
+            // sign-in is not enough — the account must be granted the admin role
+            // by a moderator. Otherwise sign back out and reject.
+            if (signInData.user?.app_metadata?.role !== 'admin') {
+                await supabase.auth.signOut();
+                throw new Error("Tài khoản này chưa được cấp quyền admin. Liên hệ moderator.");
+            }
+
+            // Supabase authenticated successfully as an admin
             router.refresh();
             router.push("/");
         } catch (err: any) {

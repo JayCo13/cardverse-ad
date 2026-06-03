@@ -6,8 +6,11 @@ export type AdminRole = 'moderator' | 'admin' | null;
 /**
  * Determines the current user's role.
  * - 'moderator': Highest authority, env-based login via cookie.
- * - 'admin': Supabase Auth user.
- * - null: Not authenticated.
+ * - 'admin': Supabase Auth user explicitly granted app_metadata.role === 'admin'.
+ * - null: Not authenticated, or a regular Supabase user without the admin grant.
+ *
+ * NOTE: this Supabase project is shared with the consumer app, so we must NOT
+ * treat every authenticated user as an admin — only those a moderator promoted.
  */
 export async function getRole(): Promise<AdminRole> {
     const cookieStore = await cookies();
@@ -25,7 +28,7 @@ export async function getRole(): Promise<AdminRole> {
             }
         );
         const { data: { user } } = await supabase.auth.getUser();
-        if (user) return 'admin';
+        if (user && user.app_metadata?.role === 'admin') return 'admin';
     } catch { }
     return null;
 }
