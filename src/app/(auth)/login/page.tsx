@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/client";
+import { resolveAdminOrigin } from "@/utils/adminUrl";
 import { motion, AnimatePresence } from "framer-motion";
 import { EnvelopeSimple, LockKey, CircleNotch, GoogleLogo } from "@phosphor-icons/react";
 import Image from "next/image";
@@ -81,10 +82,13 @@ export default function LoginPage() {
         setError(null);
         setIsLoading(true);
         try {
+            // Redirect explicitly to the admin callback (not window.origin) so
+            // Supabase never falls back to the shared consumer Site URL.
+            const origin = resolveAdminOrigin(window.location.origin);
             const { error: oauthError } = await supabase.auth.signInWithOAuth({
                 provider: "google",
                 options: {
-                    redirectTo: `${window.location.origin}/auth/callback`,
+                    redirectTo: `${origin}/auth/callback`,
                 },
             });
             if (oauthError) throw new Error(oauthError.message);

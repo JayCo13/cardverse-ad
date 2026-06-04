@@ -1,15 +1,19 @@
 import { createClient } from '@/utils/supabase/server'
+import { resolveAdminOrigin } from '@/utils/adminUrl'
 import { NextResponse } from 'next/server'
 
 // OAuth callback for the admin panel (e.g. "Sign in with Google").
 // The Supabase project is shared with the consumer app, so a successful
 // Google sign-in is NOT enough — the account must have been granted
-// app_metadata.role === 'admin' by a moderator. Otherwise we sign the
-// session back out and bounce to /login with an error.
+// app_metadata.role === 'admin' by a moderator. Any account without that
+// role is signed back out and bounced to the admin login with an error.
 export async function GET(request: Request) {
     const requestUrl = new URL(request.url)
     const code = requestUrl.searchParams.get('code')
-    const origin = requestUrl.origin
+    // Always resolve to the canonical admin origin so we never redirect onto
+    // the shared consumer site, and so the session cookie set here matches the
+    // domain the user ends up on.
+    const origin = resolveAdminOrigin(requestUrl.origin)
 
     if (!code) {
         return NextResponse.redirect(`${origin}/login?error=oauth`)
@@ -25,9 +29,11 @@ export async function GET(request: Request) {
 
     const { data: { user } } = await supabase.auth.getUser()
     if (user?.app_metadata?.role !== 'admin') {
+        // Block every non-admin account.
         await supabase.auth.signOut()
         return NextResponse.redirect(`${origin}/login?error=not_admin`)
     }
 
+    // Verified admin → land on the admin dashboard.
     return NextResponse.redirect(`${origin}/`)
 }
