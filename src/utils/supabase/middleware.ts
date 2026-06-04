@@ -38,13 +38,15 @@ export async function updateSession(request: NextRequest) {
         user = data.user
     }
 
-    // Protect all routes except /login, /forgot-password, /reset-password, and auth API routes
+    // Protect all routes except /login, /forgot-password, /reset-password,
+    // the OAuth callback, and auth API routes
     const isLoginPage = request.nextUrl.pathname.startsWith('/login')
     const isForgotPasswordPage = request.nextUrl.pathname.startsWith('/forgot-password')
     const isResetPasswordPage = request.nextUrl.pathname.startsWith('/reset-password')
+    const isAuthCallback = request.nextUrl.pathname.startsWith('/auth/callback')
     const isApiAuthRoute = request.nextUrl.pathname.startsWith('/api/auth')
 
-    const isPublicRoute = isLoginPage || isForgotPasswordPage || isResetPasswordPage || isApiAuthRoute
+    const isPublicRoute = isLoginPage || isForgotPasswordPage || isResetPasswordPage || isAuthCallback || isApiAuthRoute
     // Shared Supabase project: only users a moderator promoted (app_metadata.role
     // === 'admin') count as admins. A plain signed-in user is NOT authenticated here.
     const isAdminUser = !!user && user.app_metadata?.role === 'admin'

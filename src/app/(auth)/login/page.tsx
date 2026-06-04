@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/client";
 import { motion, AnimatePresence } from "framer-motion";
-import { EnvelopeSimple, LockKey, CircleNotch } from "@phosphor-icons/react";
+import { EnvelopeSimple, LockKey, CircleNotch, GoogleLogo } from "@phosphor-icons/react";
 import Image from "next/image";
 
 export default function LoginPage() {
@@ -61,6 +61,36 @@ export default function LoginPage() {
         } catch (err: any) {
             setError(err.message || "An error occurred during login.");
         } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // Show an error when the OAuth callback bounced us back (e.g. a Google
+    // account that hasn't been granted the admin role).
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const err = params.get("error");
+        if (err === "not_admin") {
+            setError("Tài khoản này chưa được cấp quyền admin. Liên hệ moderator.");
+        } else if (err === "oauth") {
+            setError("Đăng nhập Google thất bại. Vui lòng thử lại.");
+        }
+    }, []);
+
+    const handleGoogleLogin = async () => {
+        setError(null);
+        setIsLoading(true);
+        try {
+            const { error: oauthError } = await supabase.auth.signInWithOAuth({
+                provider: "google",
+                options: {
+                    redirectTo: `${window.location.origin}/auth/callback`,
+                },
+            });
+            if (oauthError) throw new Error(oauthError.message);
+            // Browser is redirected to Google; nothing else to do here.
+        } catch (err: any) {
+            setError(err.message || "Google sign-in failed.");
             setIsLoading(false);
         }
     };
@@ -167,6 +197,26 @@ export default function LoginPage() {
                         </motion.button>
 
                     </form>
+
+                    {/* Divider */}
+                    <div className="flex items-center gap-3 w-full my-5">
+                        <div className="h-px flex-1 bg-zinc-200 dark:bg-white/10" />
+                        <span className="text-xs text-zinc-400 dark:text-zinc-600 uppercase tracking-wider">or</span>
+                        <div className="h-px flex-1 bg-zinc-200 dark:bg-white/10" />
+                    </div>
+
+                    {/* Google sign-in (for admins who registered via Google) */}
+                    <motion.button
+                        type="button"
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        disabled={isLoading}
+                        onClick={handleGoogleLogin}
+                        className="w-full h-12 flex items-center justify-center gap-3 rounded-xl font-semibold text-zinc-900 dark:text-white bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        <GoogleLogo weight="bold" className="w-5 h-5 text-orange-500" />
+                        <span>Sign in with Google</span>
+                    </motion.button>
 
                     <div className="flex justify-end mt-4 w-full">
                         <button
