@@ -2,6 +2,24 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/utils/supabase/admin';
 import { sendKYCApproved, sendKYCRejected } from '@/utils/mail/kyc-notifications';
 
+// Resolve a user's email reliably. The profiles row may be missing or have an
+// empty email (the seller_verifications FK points at auth.users, not profiles),
+// so fall back to auth.users — which always has the account email.
+async function resolveUserEmail(
+    supabase: ReturnType<typeof createAdminClient>,
+    userId: string
+): Promise<string | null> {
+    const { data: profile } = await supabase
+        .from('profiles')
+        .select('email')
+        .eq('id', userId)
+        .single();
+    if (profile?.email) return profile.email as string;
+
+    const { data: authUser } = await supabase.auth.admin.getUserById(userId);
+    return authUser?.user?.email ?? null;
+}
+
 // GET: List all KYC verification requests
 export async function GET(request: NextRequest) {
     try {
@@ -11,7 +29,13 @@ export async function GET(request: NextRequest) {
 
         const { data, error } = await supabase
             .from('seller_verifications')
-            .select('*')
+            .select(`
+                *,
+                scan:kyc_verification_scans!ai_scan_id (
+                    cccd_id_number,
+                    cccd_dob
+                )
+            `)
             .eq('status', status)
             .order('created_at', { ascending: false });
 
@@ -84,14 +108,13 @@ export async function PATCH(request: NextRequest) {
             });
 
             // Send email notification
-            const { data: profile } = await supabase
-                .from('profiles')
-                .select('email')
-                .eq('id', verification.user_id)
-                .single();
-
-            if (profile?.email) {
-                sendKYCApproved(profile.email, (verification as any).full_name);
+            const email = await resolveUserEmail(supabase, verification.user_id);
+            if (email) {
+                // Must await: on serverless the function is frozen once the response
+                // returns, which would kill an un-awaited SMTP send mid-flight.
+                await sendKYCApproved(email, (verification as any).full_name);
+            } else {
+                console.warn(`[Admin KYC] No email found for user ${verification.user_id}; approval email skipped.`);
             }
 
         } else {
@@ -115,14 +138,12 @@ export async function PATCH(request: NextRequest) {
             });
 
             // Send email notification
-            const { data: rejProfile } = await supabase
-                .from('profiles')
-                .select('email')
-                .eq('id', verification.user_id)
-                .single();
-
-            if (rejProfile?.email) {
-                sendKYCRejected(rejProfile.email, (verification as any).full_name, rejection_reason || 'Không đạt yêu cầu');
+            const email = await resolveUserEmail(supabase, verification.user_id);
+            if (email) {
+                // Must await — see note in the approve branch.
+                await sendKYCRejected(email, (verification as any).full_name, rejection_reason || 'Không đạt yêu cầu');
+            } else {
+                console.warn(`[Admin KYC] No email found for user ${verification.user_id}; rejection email skipped.`);
             }
         }
 

@@ -25,6 +25,7 @@ type Verification = {
     rejection_reason?: string;
     created_at: string;
     user?: { email: string; display_name: string; profile_image_url: string | null };
+    scan?: { cccd_id_number?: string; cccd_dob?: string };
 };
 
 const STATUS_TABS = [
@@ -123,161 +124,216 @@ export default function KYCPage() {
             ) : (
                 <div className="space-y-4">
                     {verifications.map(v => (
-                        <div key={v.id} className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-6">
-                            <div className="flex flex-col lg:flex-row gap-6">
-                                {/* User Info */}
-                                <div className="flex-1 space-y-3">
-                                    <div className="flex items-center gap-3">
-                                        {v.user?.profile_image_url && (
-                                            <img src={v.user.profile_image_url} alt="" className="w-10 h-10 rounded-full" />
-                                        )}
-                                        <div>
-                                            <p className="font-semibold text-zinc-900 dark:text-white">
-                                                {v.full_name}
+                        <div key={v.id} className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-6 shadow-sm hover:shadow-md transition-shadow">
+                            <div className="flex flex-col xl:flex-row gap-8">
+                                {/* User Info Column */}
+                                <div className="flex-1 space-y-6">
+                                    {/* Header: User Profile */}
+                                    <div className="flex items-start justify-between">
+                                        <div className="flex items-center gap-4">
+                                            {v.user?.profile_image_url ? (
+                                                <img src={v.user.profile_image_url} alt="" className="w-12 h-12 rounded-full border border-zinc-100 dark:border-zinc-800 object-cover" />
+                                            ) : (
+                                                <div className="w-12 h-12 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-500 font-medium">
+                                                    {v.full_name.charAt(0)}
+                                                </div>
+                                            )}
+                                            <div>
+                                                <h3 className="font-semibold text-lg text-zinc-900 dark:text-zinc-100 tracking-tight">
+                                                    {v.full_name}
+                                                </h3>
+                                                <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                                                    {v.user?.email || v.user?.display_name || v.user_id}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+                                                Submitted
                                             </p>
-                                            <p className="text-xs text-zinc-500">
-                                                {v.user?.display_name || v.user?.email || v.user_id}
+                                            <p className="text-sm text-zinc-900 dark:text-zinc-300">
+                                                {new Date(v.created_at).toLocaleString('vi-VN')}
                                             </p>
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-4 text-sm">
-                                        <div>
-                                            <p className="text-zinc-500 text-xs">Ngân hàng</p>
-                                            <p className="font-medium text-zinc-800 dark:text-zinc-200">{v.bank_name}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-zinc-500 text-xs">Số tài khoản</p>
-                                            <p className="font-medium text-zinc-800 dark:text-zinc-200">{v.bank_account_number}</p>
-                                        </div>
-                                        <div className="col-span-2">
-                                            <p className="text-zinc-500 text-xs">Tên chủ TK</p>
-                                            <p className="font-medium text-zinc-800 dark:text-zinc-200">{v.bank_account_name}</p>
-                                        </div>
-                                        {v.phone_number && (
-                                            <div className="col-span-2">
-                                                <p className="text-zinc-500 text-xs">Số điện thoại</p>
-                                                <p className="font-medium text-zinc-800 dark:text-zinc-200">{v.phone_number}</p>
+                                    {/* Details Grid */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                                        {/* Identity Info */}
+                                        <div className="space-y-4">
+                                            <h4 className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 uppercase tracking-wider border-b border-zinc-100 dark:border-zinc-800 pb-2">
+                                                Identity Details
+                                            </h4>
+                                            <div className="space-y-2">
+                                                {v.phone_number && (
+                                                    <div className="flex justify-between">
+                                                        <span className="text-sm text-zinc-500">Phone</span>
+                                                        <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{v.phone_number}</span>
+                                                    </div>
+                                                )}
+                                                <div className="flex justify-between">
+                                                    <span className="text-sm text-zinc-500">Full Name</span>
+                                                    <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{v.full_name}</span>
+                                                </div>
+                                                {v.scan?.cccd_id_number && (
+                                                    <div className="flex justify-between">
+                                                        <span className="text-sm text-zinc-500">ID Number</span>
+                                                        <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{v.scan.cccd_id_number}</span>
+                                                    </div>
+                                                )}
+                                                {v.scan?.cccd_dob && (
+                                                    <div className="flex justify-between">
+                                                        <span className="text-sm text-zinc-500">Date of Birth</span>
+                                                        <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{v.scan.cccd_dob}</span>
+                                                    </div>
+                                                )}
                                             </div>
-                                        )}
+                                        </div>
+
+                                        {/* Bank Info */}
+                                        <div className="space-y-4">
+                                            <h4 className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 uppercase tracking-wider border-b border-zinc-100 dark:border-zinc-800 pb-2">
+                                                Banking Details
+                                            </h4>
+                                            <div className="space-y-2">
+                                                <div className="flex justify-between">
+                                                    <span className="text-sm text-zinc-500">Bank</span>
+                                                    <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{v.bank_name}</span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                    <span className="text-sm text-zinc-500">Account No.</span>
+                                                    <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{v.bank_account_number}</span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                    <span className="text-sm text-zinc-500">Account Name</span>
+                                                    <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{v.bank_account_name}</span>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
 
                                     {/* AI Verification Results */}
                                     {v.ai_confidence !== undefined && v.ai_confidence !== null && (
-                                        <div className={`rounded-lg p-3 border text-sm ${
-                                            v.ai_confidence >= 0.7
-                                                ? 'bg-green-50 dark:bg-green-500/10 border-green-200 dark:border-green-500/20'
-                                                : v.ai_confidence >= 0.5
-                                                ? 'bg-yellow-50 dark:bg-yellow-500/10 border-yellow-200 dark:border-yellow-500/20'
-                                                : 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/20'
-                                        }`}>
-                                            <div className="flex items-center justify-between mb-2">
-                                                <span className="font-semibold text-xs">🤖 AI Verification</span>
-                                                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                                        <div className="space-y-3">
+                                            <div className="flex items-center justify-between">
+                                                <h4 className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 uppercase tracking-wider">
+                                                    AI Analysis
+                                                </h4>
+                                                <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
                                                     v.ai_confidence >= 0.7
-                                                        ? 'bg-green-500/20 text-green-600 dark:text-green-400'
+                                                        ? 'bg-zinc-900 text-white dark:bg-white dark:text-zinc-900'
                                                         : v.ai_confidence >= 0.5
-                                                        ? 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400'
-                                                        : 'bg-red-500/20 text-red-600 dark:text-red-400'
+                                                        ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'
+                                                        : 'bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-400'
                                                 }`}>
-                                                    {Math.round(v.ai_confidence * 100)}% confidence
+                                                    {Math.round(v.ai_confidence * 100)}% Match Confidence
                                                 </span>
                                             </div>
-                                            <div className="grid grid-cols-2 gap-2 text-xs">
-                                                <div>
-                                                    <span className="text-zinc-500">CCCD: </span>
-                                                    <span className="font-medium">{v.ai_cccd_name || '—'}</span>
+                                            
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/20">
+                                                <div className="space-y-1">
+                                                    <p className="text-xs text-zinc-500 uppercase tracking-wider">ID Card Extraction</p>
+                                                    <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{v.ai_cccd_name || '—'}</p>
                                                 </div>
-                                                <div>
-                                                    <span className="text-zinc-500">Bank: </span>
-                                                    <span className="font-medium">{v.ai_bank_name || '—'}</span>
+                                                <div className="space-y-1">
+                                                    <p className="text-xs text-zinc-500 uppercase tracking-wider">Bank App Extraction</p>
+                                                    <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{v.ai_bank_name || '—'} • {v.ai_bank_number || '—'}</p>
                                                 </div>
-                                                <div className="col-span-2">
-                                                    <span className="text-zinc-500">Tên khớp: </span>
-                                                    <span className={`font-semibold ${v.ai_name_match ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                                                        {v.ai_name_match ? '✅ Khớp' : '❌ Không khớp'}
-                                                    </span>
+                                                <div className="col-span-1 sm:col-span-2 pt-2 mt-2 border-t border-zinc-200 dark:border-zinc-800">
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-sm text-zinc-600 dark:text-zinc-400">Name Matching Status</span>
+                                                        <span className={`text-sm font-semibold flex items-center gap-1.5 ${v.ai_name_match ? 'text-zinc-900 dark:text-zinc-100' : 'text-rose-600 dark:text-rose-400'}`}>
+                                                            {v.ai_name_match ? <CheckCircle className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+                                                            {v.ai_name_match ? 'Verified Match' : 'Mismatch Detected'}
+                                                        </span>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
                                     )}
 
-                                    <p className="text-xs text-zinc-400">
-                                        Gửi lúc: {new Date(v.created_at).toLocaleString('vi-VN')}
-                                    </p>
-
                                     {v.status === 'rejected' && v.rejection_reason && (
-                                        <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-lg p-3 text-sm text-red-600 dark:text-red-400">
-                                            Lý do từ chối: {v.rejection_reason}
+                                        <div className="bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 rounded-xl p-4">
+                                            <p className="text-xs font-semibold text-rose-800 dark:text-rose-400 uppercase tracking-wider mb-1">Rejection Reason</p>
+                                            <p className="text-sm text-rose-700 dark:text-rose-300">{v.rejection_reason}</p>
                                         </div>
                                     )}
                                 </div>
 
-                                {/* ID Images */}
-                                <div className="flex gap-2 flex-wrap">
-                                    {[
-                                        { url: v.id_card_front_url, label: 'CCCD Trước' },
-                                        { url: v.id_card_back_url, label: 'CCCD Sau' },
-                                        ...(v.bank_screenshot_url ? [{ url: v.bank_screenshot_url, label: 'App Ngân hàng' }] : []),
-                                    ].map(img => (
-                                        <div key={img.label} className="text-center">
-                                            <button
-                                                onClick={() => setSelectedImage(img.url)}
-                                                className="relative w-24 h-32 rounded-lg overflow-hidden border-2 border-zinc-200 dark:border-zinc-700 hover:border-orange-500 transition-colors"
-                                            >
-                                                <img src={img.url} alt={img.label} className="w-full h-full object-cover" />
-                                                <div className="absolute inset-0 bg-black/0 hover:bg-black/20 flex items-center justify-center transition-colors">
-                                                    <Eye className="h-5 w-5 text-white opacity-0 hover:opacity-100" />
-                                                </div>
-                                            </button>
-                                            <p className="text-xs text-zinc-500 mt-1">{img.label}</p>
-                                        </div>
-                                    ))}
+                                {/* Media Column */}
+                                <div className="xl:w-80 space-y-4">
+                                    <h4 className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 uppercase tracking-wider border-b border-zinc-100 dark:border-zinc-800 pb-2">
+                                        Documents
+                                    </h4>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        {[
+                                            { url: v.id_card_front_url, label: 'CCCD Trước' },
+                                            { url: v.id_card_back_url, label: 'CCCD Sau' },
+                                            ...(v.selfie_url ? [{ url: v.selfie_url, label: 'Selfie' }] : []),
+                                            ...(v.bank_screenshot_url ? [{ url: v.bank_screenshot_url, label: 'App Ngân hàng' }] : []),
+                                        ].map((img, idx) => (
+                                            <div key={idx} className="group relative">
+                                                <button
+                                                    onClick={() => setSelectedImage(img.url)}
+                                                    className="relative w-full aspect-[3/4] rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-all"
+                                                >
+                                                    <img src={img.url} alt={img.label} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                                                    <div className="absolute inset-0 bg-zinc-900/0 group-hover:bg-zinc-900/20 transition-colors flex items-center justify-center">
+                                                        <Eye className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-md" />
+                                                    </div>
+                                                </button>
+                                                <p className="text-xs font-medium text-zinc-500 mt-2 text-center">{img.label}</p>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
 
-                            {/* Actions */}
+                            {/* Actions Footer */}
                             {activeStatus === 'pending' && (
-                                <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-zinc-800 flex gap-2">
-                                    <button
-                                        onClick={() => handleAction(v.id, 'approve')}
-                                        disabled={actionLoading === v.id}
-                                        className="px-4 py-2 rounded-lg bg-green-500 hover:bg-green-600 text-white text-sm font-medium flex items-center gap-2 disabled:opacity-50"
-                                    >
-                                        {actionLoading === v.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
-                                        Duyệt
-                                    </button>
-
+                                <div className="mt-8 pt-6 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-end gap-3">
                                     {rejectingId === v.id ? (
-                                        <div className="flex-1 flex gap-2">
+                                        <div className="flex-1 flex items-center gap-3 animate-in fade-in slide-in-from-right-4 duration-200">
                                             <input
                                                 type="text"
                                                 value={rejectionReason}
                                                 onChange={e => setRejectionReason(e.target.value)}
-                                                placeholder="Nhập lý do từ chối..."
-                                                className="flex-1 px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm"
+                                                placeholder="Provide a reason for rejection..."
+                                                className="flex-1 px-4 py-2.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100 transition-shadow"
+                                                autoFocus
                                             />
+                                            <button
+                                                onClick={() => { setRejectingId(null); setRejectionReason(''); }}
+                                                className="px-4 py-2.5 rounded-lg text-sm font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 transition-colors"
+                                            >
+                                                Cancel
+                                            </button>
                                             <button
                                                 onClick={() => handleAction(v.id, 'reject')}
                                                 disabled={!rejectionReason || actionLoading === v.id}
-                                                className="px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white text-sm font-medium disabled:opacity-50"
+                                                className="px-5 py-2.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-sm font-medium disabled:opacity-50 transition-colors flex items-center gap-2 shadow-sm"
                                             >
-                                                Xác nhận từ chối
-                                            </button>
-                                            <button
-                                                onClick={() => { setRejectingId(null); setRejectionReason(''); }}
-                                                className="px-3 py-2 rounded-lg bg-zinc-200 dark:bg-zinc-700 text-sm"
-                                            >
-                                                Hủy
+                                                {actionLoading === v.id && <Loader2 className="h-4 w-4 animate-spin" />}
+                                                Confirm Rejection
                                             </button>
                                         </div>
                                     ) : (
-                                        <button
-                                            onClick={() => handleAction(v.id, 'reject')}
-                                            className="px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white text-sm font-medium flex items-center gap-2"
-                                        >
-                                            <XCircle className="h-4 w-4" /> Từ chối
-                                        </button>
+                                        <>
+                                            <button
+                                                onClick={() => handleAction(v.id, 'reject')}
+                                                className="px-5 py-2.5 rounded-lg text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10 text-sm font-medium transition-colors"
+                                            >
+                                                Từ chối
+                                            </button>
+                                            <button
+                                                onClick={() => handleAction(v.id, 'approve')}
+                                                disabled={actionLoading === v.id}
+                                                className="px-6 py-2.5 rounded-lg bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 hover:bg-zinc-800 dark:hover:bg-zinc-100 text-sm font-medium disabled:opacity-50 transition-colors flex items-center gap-2 shadow-sm"
+                                            >
+                                                {actionLoading === v.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                                                Duyệt hồ sơ
+                                            </button>
+                                        </>
                                     )}
                                 </div>
                             )}
