@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ShieldCheck, CheckCircle, XCircle, Clock, Eye, Loader2 } from "lucide-react";
+import { ShieldCheck, CheckCircle, XCircle, Clock, Eye, Loader2, AlertTriangle } from "lucide-react";
 import Image from "next/image";
 
 type Verification = {
@@ -24,6 +24,8 @@ type Verification = {
     status: string;
     rejection_reason?: string;
     created_at: string;
+    is_duplicate?: boolean;
+    duplicate_notes?: string;
     user?: { email: string; display_name: string; profile_image_url: string | null };
     scan?: { cccd_id_number?: string; cccd_dob?: string };
 };
@@ -156,6 +158,19 @@ export default function KYCPage() {
                                             </p>
                                         </div>
                                     </div>
+
+                                    {/* Duplicate (ban-evasion / shared documents) warning */}
+                                    {v.is_duplicate && (
+                                        <div className="flex items-start gap-3 rounded-xl border border-red-300 dark:border-red-500/40 bg-red-50 dark:bg-red-500/10 p-4">
+                                            <AlertTriangle className="h-5 w-5 shrink-0 text-red-600 dark:text-red-400 mt-0.5" />
+                                            <div>
+                                                <p className="text-sm font-semibold text-red-700 dark:text-red-400">⚠️ Cảnh báo trùng thông tin</p>
+                                                <p className="text-sm text-red-600/90 dark:text-red-300/90 mt-0.5">
+                                                    {v.duplicate_notes || 'CCCD hoặc số tài khoản này đã được dùng ở một tài khoản khác. Hãy kiểm tra kỹ khả năng dùng chung giấy tờ / lách ban trước khi duyệt.'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
 
                                     {/* Details Grid */}
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
