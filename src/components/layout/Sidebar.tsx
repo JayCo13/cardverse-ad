@@ -11,7 +11,8 @@ import {
     EnvelopeSimple,
     Gear,
     ShieldCheck,
-    Storefront
+    Storefront,
+    Bank
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 
@@ -19,6 +20,7 @@ const navigation = [
     { name: "Overview", href: "/", icon: SquaresFour },
     { name: "Users", href: "/users", icon: Users },
     { name: "Payments", href: "/payments", icon: CurrencyDollar },
+    { name: "Withdrawals", href: "/withdrawals", icon: Bank },
     { name: "Subscribers", href: "/subscribers", icon: EnvelopeSimple },
     { name: "KYC Sellers", href: "/kyc", icon: ShieldCheck, badgeKey: "pendingKYC" as const },
     { name: "Marketplace", href: "/marketplace", icon: Storefront, badgeKey: "disputedOrders" as const },
