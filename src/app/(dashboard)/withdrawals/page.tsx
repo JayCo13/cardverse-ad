@@ -35,10 +35,10 @@ const STATUS_TABS = [
 ];
 
 const STATUS_BADGES: Record<string, { label: string; className: string }> = {
-    pending: { label: 'Pending', className: 'bg-orange-500/10 text-orange-400 border-orange-500/20' },
-    processing: { label: 'Processing', className: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
-    completed: { label: 'Completed', className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
-    rejected: { label: 'Rejected', className: 'bg-red-500/10 text-red-400 border-red-500/20' },
+    pending: { label: 'Đang chờ duyệt', className: 'bg-orange-500/10 text-orange-400 border-orange-500/20' },
+    processing: { label: 'Đang xử lý', className: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
+    completed: { label: 'Đã chuyển', className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
+    rejected: { label: 'Đã từ chối', className: 'bg-red-500/10 text-red-400 border-red-500/20' },
 };
 
 const formatVND = (amount: number) =>
@@ -61,8 +61,8 @@ export default function WithdrawalsPage() {
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Failed to load withdrawals');
             setWithdrawals(data.withdrawals || []);
-        } catch (err: any) {
-            setError(err.message);
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : 'Failed to load withdrawals');
         } finally {
             setIsLoading(false);
         }
@@ -84,8 +84,8 @@ export default function WithdrawalsPage() {
             const data = await res.json();
             if (!res.ok) throw new Error(data.error === 'already_processed' ? 'Yêu cầu này đã được xử lý trước đó.' : (data.error || 'Action failed'));
             fetchWithdrawals(activeStatus);
-        } catch (err: any) {
-            alert(err.message);
+        } catch (err: unknown) {
+            alert(err instanceof Error ? err.message : 'Action failed');
         } finally {
             setActionLoading(null);
         }
@@ -105,8 +105,8 @@ export default function WithdrawalsPage() {
             setRejectingId(null);
             setRejectionReason('');
             fetchWithdrawals(activeStatus);
-        } catch (err: any) {
-            alert(err.message);
+        } catch (err: unknown) {
+            alert(err instanceof Error ? err.message : 'Action failed');
         } finally {
             setActionLoading(null);
         }
@@ -131,7 +131,7 @@ export default function WithdrawalsPage() {
                         Withdrawals
                     </h1>
                     <p className="text-sm text-zinc-500">
-                        Duyệt yêu cầu rút tiền của seller — chuyển khoản tay rồi đánh dấu hoàn tất, hoặc từ chối (tự động hoàn tiền vào ví).
+                        Tiền của seller được tạm giữ trong lúc chờ — chuyển khoản tay rồi đánh dấu hoàn tất, hoặc từ chối để trả lại số dư khả dụng.
                     </p>
                 </div>
             </div>
@@ -257,7 +257,7 @@ export default function WithdrawalsPage() {
                             Từ chối yêu cầu rút tiền
                         </h3>
                         <p className="text-sm text-zinc-500">
-                            Tiền sẽ được hoàn lại đầy đủ vào ví của seller. Vui lòng nhập lý do từ chối (seller sẽ nhận được thông báo này).
+                            Tiền đang tạm giữ sẽ được trả lại đầy đủ vào số dư khả dụng. Vui lòng nhập lý do từ chối (seller sẽ nhận được thông báo này).
                         </p>
                         <textarea
                             value={rejectionReason}
@@ -280,7 +280,7 @@ export default function WithdrawalsPage() {
                                 className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-500 rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 {actionLoading === rejectingId && <CircleNotch className="w-4 h-4 animate-spin" />}
-                                Xác nhận từ chối & hoàn tiền
+                                Xác nhận từ chối & trả tiền
                             </button>
                         </div>
                     </div>

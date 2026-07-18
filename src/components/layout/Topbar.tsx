@@ -1,40 +1,22 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Bell, MagnifyingGlass, SignOut, ShieldStar, UserCircle, Sun, Moon, CheckCircle, XCircle, Warning, ShoppingCart, Info } from "@phosphor-icons/react";
+import { Bell, MagnifyingGlass, SignOut, ShieldStar, UserCircle, Sun, Moon, CheckCircle, XCircle, Warning, ShoppingCart, Info, Bank } from "@phosphor-icons/react";
 import { createClient } from "@/utils/supabase/client";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useRole } from "@/context/RoleContext";
+import { useAdminNotifications, type AdminNotification } from "@/context/AdminNotificationsContext";
 import { useTheme } from "next-themes";
 import Link from "next/link";
 
-type Notification = {
-    id: string;
-    type: string;
-    title: string;
-    message: string;
-    read: boolean;
-    created_at: string;
-    link?: string;
-};
-
-type Badges = {
-    pendingKYC: number;
-    disputedOrders: number;
-    newOrders24h: number;
-};
-
 export function Topbar() {
     const router = useRouter();
-    const pathname = usePathname();
     const supabase = createClient();
     const { role, isModerator } = useRole();
+    const { notifications, unreadCount, badges } = useAdminNotifications();
     const { theme, setTheme } = useTheme();
-    const [notifications, setNotifications] = useState<Notification[]>([]);
-    const [unreadCount, setUnreadCount] = useState(0);
-    const [badges, setBadges] = useState<Badges>({ pendingKYC: 0, disputedOrders: 0, newOrders24h: 0 });
     const [isOpen, setIsOpen] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
+    const [currentTime, setCurrentTime] = useState(0);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
     // Close dropdown when clicking outside
@@ -48,29 +30,12 @@ export function Topbar() {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    // Fetch notifications on mount and periodically
-    const fetchNotifications = async () => {
-        try {
-            const res = await fetch('/api/notifications');
-            const data = await res.json();
-            setNotifications(data.notifications || []);
-            setUnreadCount(data.unreadCount || 0);
-            if (data.badges) setBadges(data.badges);
-        } catch (err) {
-            console.error('Failed to fetch notifications:', err);
-        }
-    };
-
     useEffect(() => {
-        fetchNotifications();
-        const interval = setInterval(fetchNotifications, 30_000); // Refresh every 30s
-        return () => clearInterval(interval);
+        const updateTime = () => setCurrentTime(new Date().getTime());
+        updateTime();
+        const interval = window.setInterval(updateTime, 60_000);
+        return () => window.clearInterval(interval);
     }, []);
-
-    // Refresh on page navigation
-    useEffect(() => {
-        fetchNotifications();
-    }, [pathname]);
 
     const handleSignOut = async () => {
         await supabase.auth.signOut();
@@ -79,7 +44,7 @@ export function Topbar() {
         router.push("/login");
     };
 
-    const handleNotificationClick = (notification: Notification) => {
+    const handleNotificationClick = (notification: AdminNotification) => {
         setIsOpen(false);
         if (notification.link) {
             router.push(notification.link);
@@ -93,6 +58,9 @@ export function Topbar() {
             case 'kyc_rejected': return <XCircle className="h-6 w-6 text-red-500 dark:text-red-400" weight="fill" />;
             case 'dispute': return <Warning className="h-6 w-6 text-orange-500 dark:text-orange-400" weight="fill" />;
             case 'order': return <ShoppingCart className="h-6 w-6 text-sky-500 dark:text-sky-400" weight="fill" />;
+            case 'withdrawal_pending': return <Bank className="h-6 w-6 text-orange-500 dark:text-orange-400" weight="fill" />;
+            case 'withdrawal_completed': return <CheckCircle className="h-6 w-6 text-green-500 dark:text-green-400" weight="fill" />;
+            case 'withdrawal_rejected': return <XCircle className="h-6 w-6 text-red-500 dark:text-red-400" weight="fill" />;
             default: return <Info className="h-6 w-6 text-zinc-400 dark:text-zinc-500" weight="fill" />;
         }
     };
@@ -105,7 +73,7 @@ export function Topbar() {
     };
 
     const getTimeAgo = (dateStr: string) => {
-        const diff = Date.now() - new Date(dateStr).getTime();
+        const diff = currentTime - new Date(dateStr).getTime();
         const mins = Math.floor(diff / 60000);
         if (mins < 1) return 'Vừa xong';
         if (mins < 60) return `${mins} phút trước`;
@@ -193,6 +161,11 @@ export function Topbar() {
                                             {badges.pendingKYC} KYC
                                         </span>
                                     )}
+                                    {badges.pendingWithdrawals > 0 && (
+                                        <span className="px-2 py-0.5 rounded-full bg-orange-100 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 text-[10px] font-bold">
+                                            {badges.pendingWithdrawals} Rút tiền
+                                        </span>
+                                    )}
                                     {badges.disputedOrders > 0 && (
                                         <span className="px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400 text-[10px] font-bold">
                                             {badges.disputedOrders} Dispute
@@ -251,6 +224,13 @@ export function Topbar() {
                                     className="text-xs text-orange-500 hover:text-orange-600 font-medium"
                                 >
                                     KYC Sellers →
+                                </Link>
+                                <Link
+                                    href="/withdrawals"
+                                    onClick={() => setIsOpen(false)}
+                                    className="text-xs text-orange-500 hover:text-orange-600 font-medium"
+                                >
+                                    Withdrawals →
                                 </Link>
                                 <Link
                                     href="/marketplace"

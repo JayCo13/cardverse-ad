@@ -29,38 +29,37 @@ export async function PATCH(
         const supabase = createAdminClient();
 
         if (action === 'complete') {
-            // Guarded update: only pending/processing rows can complete, and the
-            // affected-row check stops a double-process. The wallet was already
-            // debited when the seller created the request — do NOT touch it.
-            const { data: updated, error } = await supabase
-                .from('wallet_withdrawals')
-                .update({ status: 'completed', processed_at: new Date().toISOString() })
-                .eq('id', id)
-                .in('status', ['pending', 'processing'])
-                .select();
+            const { data, error } = await supabase.rpc('complete_wallet_withdrawal', {
+                p_withdrawal_id: id,
+            });
 
             if (error) throw error;
-            if (!updated || updated.length === 0) {
-                return NextResponse.json({ error: 'already_processed' }, { status: 409 });
+            if (!data?.ok) {
+                if (data?.error === 'already_processed') {
+                    return NextResponse.json({ error: 'already_processed', status: data.status }, { status: 409 });
+                }
+                if (data?.error === 'not_found') {
+                    return NextResponse.json({ error: 'Withdrawal not found' }, { status: 404 });
+                }
+                return NextResponse.json({ error: data?.error || 'completion_failed' }, { status: 500 });
             }
 
-            const w = updated[0];
             await supabase.from('notifications').insert({
-                user_id: w.user_id,
+                user_id: data.user_id,
                 type: 'withdrawal_completed',
                 title: '✅ Yêu cầu rút tiền đã hoàn tất',
-                message: `Chúng tôi đã chuyển ${formatVND(w.amount_net)} vào tài khoản ${w.bank_name} •••${String(w.bank_account_number).slice(-4)} của bạn.`,
+                message: `Chúng tôi đã chuyển ${formatVND(data.amount_net)} vào tài khoản ${data.bank_name} •••${String(data.bank_account_number).slice(-4)} của bạn.`,
             });
 
             return NextResponse.json({ success: true });
         }
 
-        // Reject: reason is mandatory, refund goes through the atomic RPC.
+        // Reject: release held funds through the atomic RPC.
         if (!rejection_reason || !rejection_reason.trim()) {
             return NextResponse.json({ error: 'rejection_reason is required' }, { status: 400 });
         }
 
-        const { data, error } = await supabase.rpc('refund_withdrawal', {
+        const { data, error } = await supabase.rpc('reject_wallet_withdrawal', {
             p_withdrawal_id: id,
             p_reason: rejection_reason.trim(),
         });
@@ -78,24 +77,17 @@ export async function PATCH(
             return NextResponse.json({ error: code || 'refund_failed' }, { status: 500 });
         }
 
-        const { data: w } = await supabase
-            .from('wallet_withdrawals')
-            .select('user_id, amount_requested')
-            .eq('id', id)
-            .single();
-
-        if (w) {
-            await supabase.from('notifications').insert({
-                user_id: w.user_id,
-                type: 'withdrawal_rejected',
-                title: '❌ Yêu cầu rút tiền bị từ chối',
-                message: `Lý do: ${rejection_reason.trim()}. ${formatVND(w.amount_requested)} đã được hoàn lại vào ví của bạn.`,
-            });
-        }
+        await supabase.from('notifications').insert({
+            user_id: data.user_id,
+            type: 'withdrawal_rejected',
+            title: '❌ Yêu cầu rút tiền bị từ chối',
+            message: `Lý do: ${rejection_reason.trim()}. ${formatVND(data.amount_requested)} đã được trả lại số dư khả dụng.`,
+        });
 
         return NextResponse.json({ success: true, new_balance: data.new_balance });
-    } catch (error: any) {
-        console.error('[/api/withdrawals/[id] PATCH] error:', error.message);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Internal server error';
+        console.error('[/api/withdrawals/[id] PATCH] error:', message);
+        return NextResponse.json({ error: message }, { status: 500 });
     }
 }
