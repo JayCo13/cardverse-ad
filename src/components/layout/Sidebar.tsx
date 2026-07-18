@@ -2,53 +2,31 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useEffect } from "react";
 import {
     SquaresFour,
     Users,
     CurrencyDollar,
-    Cards,
     EnvelopeSimple,
-    Gear,
     ShieldCheck,
     Storefront,
     Bank
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { useAdminNotifications } from "@/context/AdminNotificationsContext";
 
 const navigation = [
     { name: "Overview", href: "/", icon: SquaresFour },
     { name: "Users", href: "/users", icon: Users },
     { name: "Payments", href: "/payments", icon: CurrencyDollar },
-    { name: "Withdrawals", href: "/withdrawals", icon: Bank },
+    { name: "Withdrawals", href: "/withdrawals", icon: Bank, badgeKey: "pendingWithdrawals" as const },
     { name: "Subscribers", href: "/subscribers", icon: EnvelopeSimple },
     { name: "KYC Sellers", href: "/kyc", icon: ShieldCheck, badgeKey: "pendingKYC" as const },
     { name: "Marketplace", href: "/marketplace", icon: Storefront, badgeKey: "disputedOrders" as const },
 ];
 
-type BadgeKeys = "pendingKYC" | "disputedOrders";
-
 export function Sidebar() {
     const pathname = usePathname();
-    const [badges, setBadges] = useState<Record<BadgeKeys, number>>({ pendingKYC: 0, disputedOrders: 0 });
-
-    useEffect(() => {
-        const fetchBadges = async () => {
-            try {
-                const res = await fetch('/api/notifications');
-                const data = await res.json();
-                if (data.badges) {
-                    setBadges({
-                        pendingKYC: data.badges.pendingKYC || 0,
-                        disputedOrders: data.badges.disputedOrders || 0,
-                    });
-                }
-            } catch {} // silently fail
-        };
-        fetchBadges();
-        const interval = setInterval(fetchBadges, 30_000);
-        return () => clearInterval(interval);
-    }, []);
+    const { badges } = useAdminNotifications();
 
     return (
         <div className="flex h-full w-64 flex-col bg-white border-r border-zinc-200 dark:bg-zinc-950 dark:border-zinc-800 transition-colors duration-300">
