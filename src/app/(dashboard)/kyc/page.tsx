@@ -8,12 +8,16 @@ type Verification = {
     id: string;
     user_id: string;
     full_name: string;
-    id_card_front_url: string;
-    id_card_back_url: string;
-    selfie_url: string;
+    id_card_front_url?: string | null;
+    id_card_back_url?: string | null;
+    selfie_url?: string | null;
     bank_name: string;
+    bank_bin?: string | null;
     bank_account_number: string;
     bank_account_name: string;
+    /** Holder name returned by NAPAS. Null means the lookup never succeeded. */
+    bank_account_name_verified?: string | null;
+    bank_verified_at?: string | null;
     bank_screenshot_url?: string;
     phone_number?: string;
     ai_cccd_name?: string;
@@ -26,8 +30,25 @@ type Verification = {
     created_at: string;
     is_duplicate?: boolean;
     duplicate_notes?: string;
+    auto_approved?: boolean;
+    /** Why this submission was held back for a human. Null means it auto-approved. */
+    review_flags?: string[] | null;
+    kyc_provider?: string | null;
     user?: { email: string; display_name: string; profile_image_url: string | null };
+    /** Legacy Groq scan — only on rows created before the provider migration. */
     scan?: { cccd_id_number?: string; cccd_dob?: string };
+    kyc_session?: {
+        provider: string;
+        provider_session_id: string;
+        status: string;
+        verified_full_name: string | null;
+        verified_dob: string | null;
+        verified_document_type: string | null;
+        liveness_score: number | null;
+        face_match_score: number | null;
+        nfc_verified: boolean;
+        warnings: Array<{ shortDescription?: string | null; risk?: string | null; logType?: string | null }> | null;
+    } | null;
 };
 
 const STATUS_TABS = [
@@ -190,16 +211,22 @@ export default function KYCPage() {
                                                     <span className="text-sm text-zinc-500">Full Name</span>
                                                     <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{v.full_name}</span>
                                                 </div>
+                                                {v.kyc_session?.verified_full_name && (
+                                                    <div className="flex justify-between">
+                                                        <span className="text-sm text-zinc-500">Verified Name</span>
+                                                        <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{v.kyc_session.verified_full_name}</span>
+                                                    </div>
+                                                )}
                                                 {v.scan?.cccd_id_number && (
                                                     <div className="flex justify-between">
-                                                        <span className="text-sm text-zinc-500">ID Number</span>
+                                                        <span className="text-sm text-zinc-500">ID Number (legacy)</span>
                                                         <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{v.scan.cccd_id_number}</span>
                                                     </div>
                                                 )}
-                                                {v.scan?.cccd_dob && (
+                                                {(v.kyc_session?.verified_dob || v.scan?.cccd_dob) && (
                                                     <div className="flex justify-between">
                                                         <span className="text-sm text-zinc-500">Date of Birth</span>
-                                                        <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{v.scan.cccd_dob}</span>
+                                                        <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{v.kyc_session?.verified_dob || v.scan?.cccd_dob}</span>
                                                     </div>
                                                 )}
                                             </div>
@@ -213,7 +240,9 @@ export default function KYCPage() {
                                             <div className="space-y-2">
                                                 <div className="flex justify-between">
                                                     <span className="text-sm text-zinc-500">Bank</span>
-                                                    <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{v.bank_name}</span>
+                                                    <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                                                        {v.bank_name}{v.bank_bin ? ` (${v.bank_bin})` : ''}
+                                                    </span>
                                                 </div>
                                                 <div className="flex justify-between">
                                                     <span className="text-sm text-zinc-500">Account No.</span>
@@ -223,12 +252,98 @@ export default function KYCPage() {
                                                     <span className="text-sm text-zinc-500">Account Name</span>
                                                     <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{v.bank_account_name}</span>
                                                 </div>
+                                                {/* Whether the holder came from NAPAS or was merely typed in
+                                                    decides how much this row can be trusted at payout time. */}
+                                                <div className="flex justify-between">
+                                                    <span className="text-sm text-zinc-500">NAPAS Lookup</span>
+                                                    {v.bank_verified_at ? (
+                                                        <span className="text-sm font-semibold flex items-center gap-1.5 text-zinc-900 dark:text-zinc-100">
+                                                            <CheckCircle className="w-4 h-4" /> Khớp chủ tài khoản
+                                                        </span>
+                                                    ) : v.bank_account_name_verified ? (
+                                                        <span className="text-sm font-semibold text-rose-600 dark:text-rose-400 text-right">
+                                                            Lệch — ngân hàng trả về “{v.bank_account_name_verified}”
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-sm font-semibold flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
+                                                            <XCircle className="w-4 h-4" /> Chưa tra cứu được
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
 
-                                    {/* AI Verification Results */}
-                                    {v.ai_confidence !== undefined && v.ai_confidence !== null && (
+                                    {/* Why a human is looking at this at all. Everything that
+                                        auto-approves never reaches this screen. */}
+                                    {v.review_flags && v.review_flags.length > 0 && (
+                                        <div className="rounded-xl border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 p-4 space-y-2">
+                                            <p className="text-sm font-semibold text-amber-800 dark:text-amber-400 flex items-center gap-2">
+                                                <AlertTriangle className="h-4 w-4" /> Lý do cần soát thủ công
+                                            </p>
+                                            <ul className="list-disc list-inside space-y-1">
+                                                {v.review_flags.map((flag, i) => (
+                                                    <li key={i} className="text-sm text-amber-700 dark:text-amber-300">{flag}</li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
+
+                                    {/* Identity attested by the verification provider */}
+                                    {v.kyc_session && (
+                                        <div className="space-y-3">
+                                            <div className="flex items-center justify-between">
+                                                <h4 className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 uppercase tracking-wider">
+                                                    Provider Verification
+                                                </h4>
+                                                <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-zinc-900 text-white dark:bg-white dark:text-zinc-900">
+                                                    {v.kyc_session.provider} • {v.kyc_session.status}
+                                                </span>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/20">
+                                                <div className="space-y-1">
+                                                    <p className="text-xs text-zinc-500 uppercase tracking-wider">Liveness</p>
+                                                    <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                                                        {v.kyc_session.liveness_score ?? '—'}
+                                                    </p>
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <p className="text-xs text-zinc-500 uppercase tracking-wider">Face Match</p>
+                                                    <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                                                        {v.kyc_session.face_match_score ?? '—'}
+                                                    </p>
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <p className="text-xs text-zinc-500 uppercase tracking-wider">NFC Chip</p>
+                                                    <p className={`text-sm font-semibold flex items-center gap-1.5 ${v.kyc_session.nfc_verified ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-500'}`}>
+                                                        {v.kyc_session.nfc_verified ? <CheckCircle className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+                                                        {v.kyc_session.nfc_verified ? 'Đã đọc chip' : 'Không đọc chip'}
+                                                    </p>
+                                                </div>
+
+                                                {v.kyc_session.warnings && v.kyc_session.warnings.length > 0 && (
+                                                    <div className="col-span-1 sm:col-span-3 pt-2 mt-2 border-t border-zinc-200 dark:border-zinc-800 space-y-1">
+                                                        <p className="text-xs text-zinc-500 uppercase tracking-wider">Provider warnings</p>
+                                                        {v.kyc_session.warnings.map((w, i) => (
+                                                            <p key={i} className="text-sm text-zinc-700 dark:text-zinc-300">
+                                                                • {w.shortDescription || w.risk}
+                                                            </p>
+                                                        ))}
+                                                    </div>
+                                                )}
+
+                                                <div className="col-span-1 sm:col-span-3 pt-2 border-t border-zinc-200 dark:border-zinc-800">
+                                                    <p className="text-xs text-zinc-500">
+                                                        Session <span className="font-mono">{v.kyc_session.provider_session_id}</span> — mở trên dashboard nhà cung cấp để xem ảnh giấy tờ.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Legacy Groq analysis — pre-migration rows only */}
+                                    {!v.kyc_session && v.ai_confidence !== undefined && v.ai_confidence !== null && (
                                         <div className="space-y-3">
                                             <div className="flex items-center justify-between">
                                                 <h4 className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 uppercase tracking-wider">
@@ -280,10 +395,17 @@ export default function KYCPage() {
                                     <h4 className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 uppercase tracking-wider border-b border-zinc-100 dark:border-zinc-800 pb-2">
                                         Documents
                                     </h4>
+                                    {/* New submissions carry no ID images: the provider holds
+                                        them. Only the optional bank screenshot lands here. */}
+                                    {!v.id_card_front_url && !v.bank_screenshot_url && (
+                                        <p className="text-sm text-zinc-500">
+                                            Ảnh giấy tờ do {v.kyc_provider || 'nhà cung cấp'} lưu giữ. Xem trong dashboard của họ.
+                                        </p>
+                                    )}
                                     <div className="grid grid-cols-2 gap-3">
                                         {[
-                                            { url: v.id_card_front_url, label: 'CCCD Trước' },
-                                            { url: v.id_card_back_url, label: 'CCCD Sau' },
+                                            ...(v.id_card_front_url ? [{ url: v.id_card_front_url, label: 'CCCD Trước' }] : []),
+                                            ...(v.id_card_back_url ? [{ url: v.id_card_back_url, label: 'CCCD Sau' }] : []),
                                             ...(v.selfie_url ? [{ url: v.selfie_url, label: 'Selfie' }] : []),
                                             ...(v.bank_screenshot_url ? [{ url: v.bank_screenshot_url, label: 'App Ngân hàng' }] : []),
                                         ].map((img, idx) => (
