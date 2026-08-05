@@ -194,10 +194,18 @@ export default function WithdrawalsPage() {
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4">
-                                                <div className="flex flex-col">
-                                                    <span className="text-zinc-900 dark:text-zinc-200 font-medium">{w.bank_name}</span>
-                                                    <span className="font-mono text-xs">{w.bank_account_number}</span>
-                                                    <span className="text-xs text-zinc-400 dark:text-zinc-500">{w.bank_account_name}</span>
+                                                <div className="flex flex-col gap-0.5">
+                                                    <span className="text-zinc-500 dark:text-zinc-400 text-xs">{w.bank_name}</span>
+                                                    <span className="font-mono text-sm text-zinc-900 dark:text-zinc-200">{w.bank_account_number}</span>
+                                                    {/* The name the payout must land on. Whoever makes the transfer has
+                                                        to compare this against what their banking app shows before
+                                                        confirming — that comparison is the ownership check. */}
+                                                    <span className="text-sm font-semibold uppercase text-zinc-900 dark:text-zinc-100">
+                                                        {w.bank_account_name}
+                                                    </span>
+                                                    <span className="text-[11px] text-amber-600 dark:text-amber-400">
+                                                        Đối chiếu tên này với app ngân hàng trước khi chuyển
+                                                    </span>
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 text-right font-medium text-zinc-900 dark:text-white whitespace-nowrap">{formatVND(w.amount_requested)}</td>
