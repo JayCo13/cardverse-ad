@@ -29,6 +29,8 @@ export async function GET(request: NextRequest) {
         const { searchParams } = new URL(request.url);
         const status = searchParams.get('status') || 'pending';
 
+        // `scan` is only populated for rows predating the provider migration;
+        // `kyc_session` carries the identity attested by the provider.
         const { data, error } = await supabase
             .from('seller_verifications')
             .select(`
@@ -36,6 +38,18 @@ export async function GET(request: NextRequest) {
                 scan:kyc_verification_scans!ai_scan_id (
                     cccd_id_number,
                     cccd_dob
+                ),
+                kyc_session:kyc_sessions!kyc_session_id (
+                    provider,
+                    provider_session_id,
+                    status,
+                    verified_full_name,
+                    verified_dob,
+                    verified_document_type,
+                    liveness_score,
+                    face_match_score,
+                    nfc_verified,
+                    warnings
                 )
             `)
             .eq('status', status)

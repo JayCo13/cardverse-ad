@@ -4,7 +4,7 @@ function getAppUrl() {
     return process.env.NEXT_PUBLIC_APP_URL || 'https://cardversehub.com';
 }
 
-function buildTemplate(title: string, body: string) {
+export function buildTemplate(title: string, body: string) {
     const appUrl = getAppUrl();
     // Luôn trỏ logo về server thật để test ở localhost cũng xem được ảnh
     const logoUrl = `https://cardversehub.com/assets/logo-verse.png`;

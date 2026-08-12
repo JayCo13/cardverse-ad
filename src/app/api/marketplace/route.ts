@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/utils/supabase/admin';
 import { getAdminActor, getRole } from '@/utils/auth/getRole';
+import { sendOrderRefundEmails } from '@/utils/mail/order-notifications';
 
 // GET: List all marketplace orders
 export async function GET(request: NextRequest) {
@@ -60,10 +61,46 @@ export async function PATCH(request: NextRequest) {
             return NextResponse.json({ error: 'Idempotency-Key is required' }, { status: 400 });
         }
         const body = await request.json();
-        const { order_id, action } = body; // action: 'refund_buyer' | 'release_seller'
+        const { order_id, action, note } = body; // action: 'refund_buyer' | 'release_seller'
 
         if (!order_id || !['refund_buyer', 'release_seller'].includes(action)) {
             return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
+        }
+
+        let refundMailContext: {
+            buyerEmail?: string | null;
+            sellerEmail?: string | null;
+            cardName: string;
+            amount: number;
+        } | null = null;
+
+        if (action === 'refund_buyer') {
+            const { data: order, error: orderError } = await supabase
+                .from('orders')
+                .select(`
+                    total_paid,
+                    card:cards(name),
+                    buyer:profiles!orders_buyer_id_fkey(email),
+                    seller:profiles!orders_seller_id_fkey(email)
+                `)
+                .eq('id', order_id)
+                .maybeSingle();
+
+            if (orderError || !order) {
+                return NextResponse.json({ error: 'Order not found' }, { status: 404 });
+            }
+
+            const mailOrder = order as typeof order & {
+                card?: { name?: string | null } | null;
+                buyer?: { email?: string | null } | null;
+                seller?: { email?: string | null } | null;
+            };
+            refundMailContext = {
+                buyerEmail: mailOrder.buyer?.email,
+                sellerEmail: mailOrder.seller?.email,
+                cardName: mailOrder.card?.name || 'Thẻ',
+                amount: Number(mailOrder.total_paid),
+            };
         }
 
         const { data: resolution, error: resolutionError } = await supabase.rpc('resolve_marketplace_dispute', {
@@ -74,6 +111,19 @@ export async function PATCH(request: NextRequest) {
             p_idempotency_key: idempotencyKey,
         });
         if (resolutionError) throw resolutionError;
+
+        const result = resolution as { replayed?: boolean } | null;
+        if (action === 'refund_buyer' && refundMailContext && !result?.replayed) {
+            await sendOrderRefundEmails({
+                buyerEmail: refundMailContext.buyerEmail,
+                sellerEmail: refundMailContext.sellerEmail,
+                cardName: refundMailContext.cardName,
+                amount: refundMailContext.amount,
+                orderId: order_id,
+                note: typeof note === 'string' ? note : undefined,
+            });
+        }
+
         return NextResponse.json({ success: true, ...resolution });
     } catch (error: any) {
         console.error('Admin resolve dispute error:', error);
