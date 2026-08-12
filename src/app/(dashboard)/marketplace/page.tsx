@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Storefront, Package, CheckCircle, CurrencyDollar, ArrowRight } from "@phosphor-icons/react";
 import { AlertTriangle, Loader2 } from "lucide-react";
 
@@ -47,6 +47,7 @@ export default function MarketplacePage() {
     const [isLoading, setIsLoading] = useState(true);
     const [activeFilter, setActiveFilter] = useState('all');
     const [actionLoading, setActionLoading] = useState<string | null>(null);
+    const actionKeys = useRef<Record<string, string>>({});
 
     const fetchOrders = async (filter: string) => {
         setIsLoading(true);
@@ -70,12 +71,18 @@ export default function MarketplacePage() {
     const handleDispute = async (orderId: string, action: 'refund_buyer' | 'release_seller') => {
         setActionLoading(orderId);
         try {
+            const fingerprint = `${orderId}:${action}`;
+            actionKeys.current[fingerprint] ||= crypto.randomUUID();
             const res = await fetch('/api/marketplace', {
                 method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Idempotency-Key': actionKeys.current[fingerprint],
+                },
                 body: JSON.stringify({ order_id: orderId, action }),
             });
             if (!res.ok) throw new Error('Failed');
+            delete actionKeys.current[fingerprint];
             fetchOrders(activeFilter);
         } catch (err) {
             console.error('Dispute resolution error:', err);

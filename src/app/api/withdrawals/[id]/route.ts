@@ -1,93 +1,101 @@
 import { NextResponse } from 'next/server';
+import { getAdminActor } from '@/utils/auth/getRole';
 import { createAdminClient } from '@/utils/supabase/admin';
-import { getRole } from '@/utils/auth/getRole';
 
-const formatVND = (amount: number) =>
-    new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
+const ACTIONS = new Set([
+  'verify_for_transfer',
+  'start_transfer',
+  'release_claim',
+  'complete',
+  'reject',
+  'mark_transfer_failed',
+  'record_returned',
+  'resolve_legacy',
+  'takeover_recovery',
+]);
 
-// PATCH: Complete (admin transferred the money by hand) or reject (refund the
-// wallet) a withdrawal request. Amounts/bank info are never taken from the
-// client — everything is re-read from the DB by id.
-export async function PATCH(
-    request: Request,
-    { params }: { params: Promise<{ id: string }> }
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> },
 ) {
-    const role = await getRole();
-    if (!role) {
-        return NextResponse.json({ error: 'Forbidden. You must be authenticated.' }, { status: 403 });
+  const actor = await getAdminActor();
+  if (!actor) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
+  const { id } = await params;
+  const admin = createAdminClient();
+  const { data, error } = await admin.rpc('get_wallet_withdrawal_statement', {
+    p_withdrawal_id: id,
+  });
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (!data?.ok) return NextResponse.json({ error: 'Withdrawal not found' }, { status: 404 });
+
+  // The RPC contract intentionally contains masked destinations only. Never
+  // enrich this GET with wallet_withdrawals.bank_account_number.
+  return NextResponse.json({ ...data, actor_role: actor.role }, {
+    headers: { 'Cache-Control': 'private, no-store, max-age=0' },
+  });
+}
+
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const actor = await getAdminActor();
+  if (!actor) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
+  try {
+    const { id } = await params;
+    const idempotencyKey = request.headers.get('idempotency-key');
+    if (!idempotencyKey || !/^[0-9a-f-]{36}$/i.test(idempotencyKey)) {
+      return NextResponse.json({ error: 'Idempotency-Key is required' }, { status: 400 });
     }
 
-    try {
-        const { id } = await params;
-        const body = await request.json();
-        const { action, rejection_reason } = body as { action?: string; rejection_reason?: string };
-
-        if (!id || !['complete', 'reject'].includes(action || '')) {
-            return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
-        }
-
-        const supabase = createAdminClient();
-
-        if (action === 'complete') {
-            const { data, error } = await supabase.rpc('complete_wallet_withdrawal', {
-                p_withdrawal_id: id,
-            });
-
-            if (error) throw error;
-            if (!data?.ok) {
-                if (data?.error === 'already_processed') {
-                    return NextResponse.json({ error: 'already_processed', status: data.status }, { status: 409 });
-                }
-                if (data?.error === 'not_found') {
-                    return NextResponse.json({ error: 'Withdrawal not found' }, { status: 404 });
-                }
-                return NextResponse.json({ error: data?.error || 'completion_failed' }, { status: 500 });
-            }
-
-            await supabase.from('notifications').insert({
-                user_id: data.user_id,
-                type: 'withdrawal_completed',
-                title: '✅ Yêu cầu rút tiền đã hoàn tất',
-                message: `Chúng tôi đã chuyển ${formatVND(data.amount_net)} vào tài khoản ${data.bank_name} •••${String(data.bank_account_number).slice(-4)} của bạn.`,
-            });
-
-            return NextResponse.json({ success: true });
-        }
-
-        // Reject: release held funds through the atomic RPC.
-        if (!rejection_reason || !rejection_reason.trim()) {
-            return NextResponse.json({ error: 'rejection_reason is required' }, { status: 400 });
-        }
-
-        const { data, error } = await supabase.rpc('reject_wallet_withdrawal', {
-            p_withdrawal_id: id,
-            p_reason: rejection_reason.trim(),
-        });
-
-        if (error) throw error;
-
-        if (!data || data.ok !== true) {
-            const code = data?.error;
-            if (code === 'already_processed') {
-                return NextResponse.json({ error: 'already_processed', status: data.status }, { status: 409 });
-            }
-            if (code === 'not_found') {
-                return NextResponse.json({ error: 'Withdrawal not found' }, { status: 404 });
-            }
-            return NextResponse.json({ error: code || 'refund_failed' }, { status: 500 });
-        }
-
-        await supabase.from('notifications').insert({
-            user_id: data.user_id,
-            type: 'withdrawal_rejected',
-            title: '❌ Yêu cầu rút tiền bị từ chối',
-            message: `Lý do: ${rejection_reason.trim()}. ${formatVND(data.amount_requested)} đã được trả lại số dư khả dụng.`,
-        });
-
-        return NextResponse.json({ success: true, new_balance: data.new_balance });
-    } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : 'Internal server error';
-        console.error('[/api/withdrawals/[id] PATCH] error:', message);
-        return NextResponse.json({ error: message }, { status: 500 });
+    const body = await request.json();
+    const action = typeof body.action === 'string' ? body.action : '';
+    if (!ACTIONS.has(action)) {
+      return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
     }
+    if (action === 'mark_transfer_failed' || action === 'record_returned' || action === 'takeover_recovery') {
+      if (actor.role !== 'moderator') {
+        return NextResponse.json({ error: 'Moderator role required' }, { status: 403 });
+      }
+    }
+
+    const payload = action === 'reject'
+      ? { reason: body.reason || body.rejection_reason }
+      : body.payload || {
+        transfer_reference: body.transfer_reference,
+        return_reference: body.return_reference,
+        reason: body.reason,
+        evidence: body.evidence,
+        outcome: body.outcome,
+      };
+
+    const admin = createAdminClient();
+    const { data, error } = await admin.rpc('perform_withdrawal_action', {
+      p_withdrawal_id: id,
+      p_action: action,
+      p_idempotency_key: idempotencyKey,
+      p_actor_id: actor.id,
+      p_actor_role: actor.role,
+      p_payload: payload,
+    });
+    if (error) throw error;
+    if (!data?.ok) {
+      const code = data?.error || 'action_failed';
+      const status = code === 'not_found' ? 404
+        : code.includes('forbidden') ? 403
+          : code.includes('conflict') || code.includes('mismatch') || code.includes('not_') ? 409
+            : 400;
+      return NextResponse.json({ error: code, ...data }, { status });
+    }
+
+    return NextResponse.json(data, {
+      headers: { 'Cache-Control': 'private, no-store, max-age=0' },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Internal server error';
+    console.error('[/api/withdrawals/[id]]', message);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }

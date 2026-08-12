@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { MODERATOR_COOKIE_NAME, verifyModeratorSessionEdge } from '@/utils/auth/moderatorSessionEdge'
 
 export async function updateSession(request: NextRequest) {
     let supabaseResponse = NextResponse.next({
@@ -27,8 +28,11 @@ export async function updateSession(request: NextRequest) {
         }
     )
 
-    // Check for Moderator cookie first
-    const hasModeratorSession = request.cookies.get('moderator_session')?.value === 'true'
+    // A moderator session is trusted only after HMAC and expiry verification.
+    // The legacy literal `moderator_session=true` cookie must never authenticate.
+    const hasModeratorSession = !!await verifyModeratorSessionEdge(
+        request.cookies.get(MODERATOR_COOKIE_NAME)?.value
+    )
 
     let user = null;
 

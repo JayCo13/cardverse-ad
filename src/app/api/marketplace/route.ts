@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/utils/supabase/admin';
+import { getAdminActor, getRole } from '@/utils/auth/getRole';
 
 // GET: List all marketplace orders
 export async function GET(request: NextRequest) {
+    if (!await getRole()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     try {
         const supabase = createAdminClient();
         const { searchParams } = new URL(request.url);
@@ -49,8 +51,14 @@ export async function GET(request: NextRequest) {
 
 // PATCH: Admin resolve dispute
 export async function PATCH(request: NextRequest) {
+    const actor = await getAdminActor();
+    if (!actor) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     try {
         const supabase = createAdminClient();
+        const idempotencyKey = request.headers.get('idempotency-key');
+        if (!idempotencyKey || !/^[0-9a-f-]{36}$/i.test(idempotencyKey)) {
+            return NextResponse.json({ error: 'Idempotency-Key is required' }, { status: 400 });
+        }
         const body = await request.json();
         const { order_id, action } = body; // action: 'refund_buyer' | 'release_seller'
 
@@ -58,95 +66,15 @@ export async function PATCH(request: NextRequest) {
             return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
         }
 
-        const { data: order, error: orderError } = await supabase
-            .from('orders')
-            .select('*')
-            .eq('id', order_id)
-            .single();
-
-        if (orderError || !order) {
-            return NextResponse.json({ error: 'Order not found' }, { status: 404 });
-        }
-
-        if (action === 'refund_buyer') {
-            // Refund buyer wallet
-            const { data: buyerWallet } = await supabase
-                .from('wallets')
-                .select('*')
-                .eq('user_id', order.buyer_id)
-                .single();
-
-            if (buyerWallet) {
-                const newBalance = buyerWallet.available_balance + order.total_paid;
-                await supabase.from('wallets').update({
-                    available_balance: newBalance,
-                    updated_at: new Date().toISOString(),
-                }).eq('user_id', order.buyer_id);
-
-                await supabase.from('wallet_transactions').insert({
-                    wallet_id: buyerWallet.id,
-                    user_id: order.buyer_id,
-                    type: 'escrow_release',
-                    amount: order.total_paid,
-                    balance_after: newBalance,
-                    description: `Hoàn tiền dispute - Đơn #${order_id.substring(0, 8)}`,
-                    reference_id: order_id,
-                });
-            }
-
-            await supabase.from('orders').update({
-                status: 'refunded',
-                updated_at: new Date().toISOString(),
-            }).eq('id', order_id);
-
-            // Restore card
-            await supabase.from('cards').update({ status: 'active' }).eq('id', order.card_id);
-
-            // Notify both
-            await supabase.from('notifications').insert([
-                { user_id: order.buyer_id, type: 'dispute_resolved', title: 'Khiếu nại đã được giải quyết', message: 'Tiền đã được hoàn vào ví của bạn.' },
-                { user_id: order.seller_id, type: 'dispute_resolved', title: 'Khiếu nại đã được giải quyết', message: 'Admin đã quyết định hoàn tiền cho người mua. Thẻ sẽ được khôi phục.' },
-            ]);
-
-        } else {
-            // Release to seller
-            const sellerPayout = order.amount - order.platform_fee;
-            const { data: sellerWallet } = await supabase
-                .from('wallets')
-                .select('*')
-                .eq('user_id', order.seller_id)
-                .single();
-
-            if (sellerWallet) {
-                const newBalance = sellerWallet.available_balance + sellerPayout;
-                await supabase.from('wallets').update({
-                    available_balance: newBalance,
-                    updated_at: new Date().toISOString(),
-                }).eq('user_id', order.seller_id);
-
-                await supabase.from('wallet_transactions').insert({
-                    wallet_id: sellerWallet.id,
-                    user_id: order.seller_id,
-                    type: 'marketplace_sale',
-                    amount: sellerPayout,
-                    balance_after: newBalance,
-                    description: `Bán thẻ (dispute resolved) - Đơn #${order_id.substring(0, 8)}`,
-                    reference_id: order_id,
-                });
-            }
-
-            await supabase.from('orders').update({
-                status: 'completed',
-                updated_at: new Date().toISOString(),
-            }).eq('id', order_id);
-
-            await supabase.from('notifications').insert([
-                { user_id: order.seller_id, type: 'dispute_resolved', title: 'Khiếu nại đã được giải quyết', message: `Tiền đã được chuyển vào ví. +${sellerPayout.toLocaleString()}đ` },
-                { user_id: order.buyer_id, type: 'dispute_resolved', title: 'Khiếu nại đã được giải quyết', message: 'Admin đã quyết định giữ giao dịch hợp lệ.' },
-            ]);
-        }
-
-        return NextResponse.json({ success: true });
+        const { data: resolution, error: resolutionError } = await supabase.rpc('resolve_marketplace_dispute', {
+            p_order_id: order_id,
+            p_action: action,
+            p_actor_id: actor.id,
+            p_actor_role: actor.role,
+            p_idempotency_key: idempotencyKey,
+        });
+        if (resolutionError) throw resolutionError;
+        return NextResponse.json({ success: true, ...resolution });
     } catch (error: any) {
         console.error('Admin resolve dispute error:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
