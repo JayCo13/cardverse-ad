@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, use, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
     ArrowLeft, User as UserIcon, EnvelopeSimple, Clock,
@@ -55,6 +55,7 @@ export default function UserDetailsPage({ params }: UserDetailsProps) {
     const [showGiveaway, setShowGiveaway] = useState(false);
     const [giveawayLoading, setGiveawayLoading] = useState<string | null>(null);
     const [giveawayResult, setGiveawayResult] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+    const giveawayKeys = useRef<Record<string, string>>({});
 
     const fetchUserDetails = async () => {
         try {
@@ -81,9 +82,13 @@ export default function UserDetailsPage({ params }: UserDetailsProps) {
         setGiveawayLoading(packageType);
         setGiveawayResult(null);
         try {
+            giveawayKeys.current[packageType] ||= crypto.randomUUID();
             const res = await fetch(`/api/users/${userId}/giveaway`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Idempotency-Key': giveawayKeys.current[packageType],
+                },
                 body: JSON.stringify({ packageType }),
             });
             const json = await res.json();
@@ -91,6 +96,7 @@ export default function UserDetailsPage({ params }: UserDetailsProps) {
 
             const label = packageType.replace('_', ' ').toUpperCase();
             setGiveawayResult({ type: 'success', message: `${label} granted successfully!` });
+            delete giveawayKeys.current[packageType];
             // Refresh user data to show the new subscription
             fetchUserDetails();
         } catch (err: any) {
