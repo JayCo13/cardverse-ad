@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/utils/supabase/admin';
 import { sendKYCApproved, sendKYCRejected } from '@/utils/mail/kyc-notifications';
+import { getRole } from '@/utils/auth/getRole';
 
 // Resolve a user's email reliably. The profiles row may be missing or have an
 // empty email (the seller_verifications FK points at auth.users, not profiles),
@@ -22,6 +23,7 @@ async function resolveUserEmail(
 
 // GET: List all KYC verification requests
 export async function GET(request: NextRequest) {
+    if (!await getRole()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     try {
         const supabase = createAdminClient();
         const { searchParams } = new URL(request.url);
@@ -64,10 +66,15 @@ export async function GET(request: NextRequest) {
         const profileMap = new Map((profiles || []).map((p: any) => [p.id, p]));
         const verifications = (data || []).map((v: any) => ({
             ...v,
+            bank_account_number: typeof v.bank_account_number === 'string'
+                ? `••••${v.bank_account_number.slice(-4)}`
+                : null,
             user: profileMap.get(v.user_id) || null,
         }));
 
-        return NextResponse.json({ verifications });
+        return NextResponse.json({ verifications }, {
+            headers: { 'Cache-Control': 'private, no-store, max-age=0' },
+        });
     } catch (error: any) {
         console.error('Admin KYC list error:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
@@ -76,6 +83,7 @@ export async function GET(request: NextRequest) {
 
 // PATCH: Approve or reject a verification
 export async function PATCH(request: NextRequest) {
+    if (!await getRole()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     try {
         const supabase = createAdminClient();
         const body = await request.json();

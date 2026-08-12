@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/utils/supabase/admin';
-import { getRole } from '@/utils/auth/getRole';
+import { getAdminActor, getRole } from '@/utils/auth/getRole';
 import { sendOrderRefundEmails } from '@/utils/mail/order-notifications';
 
 // GET: List all marketplace orders
 export async function GET(request: NextRequest) {
+    if (!await getRole()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     try {
         const supabase = createAdminClient();
         const { searchParams } = new URL(request.url);
@@ -51,14 +52,14 @@ export async function GET(request: NextRequest) {
 
 // PATCH: Admin resolve dispute
 export async function PATCH(request: NextRequest) {
-    // Only an authenticated moderator may move escrow money.
-    const role = await getRole();
-    if (!role) {
-        return NextResponse.json({ error: 'Forbidden. You must be authenticated.' }, { status: 403 });
-    }
-
+    const actor = await getAdminActor();
+    if (!actor) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     try {
         const supabase = createAdminClient();
+        const idempotencyKey = request.headers.get('idempotency-key');
+        if (!idempotencyKey || !/^[0-9a-f-]{36}$/i.test(idempotencyKey)) {
+            return NextResponse.json({ error: 'Idempotency-Key is required' }, { status: 400 });
+        }
         const body = await request.json();
         const { order_id, action, note } = body; // action: 'refund_buyer' | 'release_seller'
 
@@ -66,115 +67,64 @@ export async function PATCH(request: NextRequest) {
             return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
         }
 
-        const { data: order, error: orderError } = await supabase
-            .from('orders')
-            .select(`
-                id, buyer_id, seller_id, card_id, amount, total_paid, status, metadata,
-                card:cards(name),
-                buyer:profiles!orders_buyer_id_fkey(email),
-                seller:profiles!orders_seller_id_fkey(email)
-            `)
-            .eq('id', order_id)
-            .single();
-
-        if (orderError || !order) {
-            return NextResponse.json({ error: 'Order not found' }, { status: 404 });
-        }
-        // Only escalated/disputed orders can be resolved, and only once.
-        if (order.status !== 'disputed') {
-            return NextResponse.json({ error: 'already_resolved', status: order.status }, { status: 409 });
-        }
-
-        const now = new Date().toISOString();
-        const shortId = String(order_id).substring(0, 8);
+        let refundMailContext: {
+            buyerEmail?: string | null;
+            sellerEmail?: string | null;
+            cardName: string;
+            amount: number;
+        } | null = null;
 
         if (action === 'refund_buyer') {
-            // CAS: only the request that flips disputed → cancelled refunds.
-            const { data: claimed } = await supabase
+            const { data: order, error: orderError } = await supabase
                 .from('orders')
-                .update({ status: 'cancelled', updated_at: now })
+                .select(`
+                    total_paid,
+                    card:cards(name),
+                    buyer:profiles!orders_buyer_id_fkey(email),
+                    seller:profiles!orders_seller_id_fkey(email)
+                `)
                 .eq('id', order_id)
-                .eq('status', 'disputed')
-                .select('id')
                 .maybeSingle();
-            if (!claimed) {
-                return NextResponse.json({ error: 'already_resolved' }, { status: 409 });
+
+            if (orderError || !order) {
+                return NextResponse.json({ error: 'Order not found' }, { status: 404 });
             }
 
-            // Refund the buyer via the atomic wallet RPC (balance + ledger in one tx).
-            const { error: refundErr } = await supabase.rpc('credit_wallet', {
-                p_user_id: order.buyer_id,
-                p_amount: order.total_paid,
-                p_type: 'refund',
-                p_description: `Hoàn tiền - Đơn #${shortId} (admin xử lý khiếu nại)`,
-                p_reference_id: order_id,
-            });
-            if (refundErr) {
-                await supabase.from('orders').update({ status: 'disputed', updated_at: now }).eq('id', order_id).eq('status', 'cancelled');
-                throw refundErr;
-            }
+            const mailOrder = order as typeof order & {
+                card?: { name?: string | null } | null;
+                buyer?: { email?: string | null } | null;
+                seller?: { email?: string | null } | null;
+            };
+            refundMailContext = {
+                buyerEmail: mailOrder.buyer?.email,
+                sellerEmail: mailOrder.seller?.email,
+                cardName: mailOrder.card?.name || 'Thẻ',
+                amount: Number(mailOrder.total_paid),
+            };
+        }
 
-            // Relist inventory: bundle → add the bought cards back; single card is
-            // also relisted by the DB trigger, but we do it here so it works even
-            // if the trigger migration hasn't been applied yet.
-            const selection = Array.isArray((order.metadata as any)?.bundle_selection) ? (order.metadata as any).bundle_selection : [];
-            if (selection.length > 0) {
-                const { data: cardRow } = await supabase.from('cards').select('bundle_items').eq('id', order.card_id).single();
-                const items = Array.isArray((cardRow as any)?.bundle_items) ? (cardRow as any).bundle_items : [];
-                await supabase.from('cards').update({ bundle_items: [...items, ...selection], status: 'active', reserved_until: null, updated_at: now }).eq('id', order.card_id);
-            } else {
-                await supabase.from('cards').update({ status: 'active', reserved_until: null, updated_at: now }).eq('id', order.card_id).in('status', ['sold', 'in_transaction']);
-            }
+        const { data: resolution, error: resolutionError } = await supabase.rpc('resolve_marketplace_dispute', {
+            p_order_id: order_id,
+            p_action: action,
+            p_actor_id: actor.id,
+            p_actor_role: actor.role,
+            p_idempotency_key: idempotencyKey,
+        });
+        if (resolutionError) throw resolutionError;
 
-            await supabase.from('notifications').insert([
-                { user_id: order.buyer_id, type: 'order_refunded', title: 'Đã hoàn tiền', message: `Quản trị viên đã hoàn ${Number(order.total_paid).toLocaleString()}đ vào ví CardVerse của bạn.`, card_id: order.card_id, order_id, read: false },
-                { user_id: order.seller_id, type: 'order_cancelled', title: 'Đơn hàng đã huỷ', message: 'Quản trị viên đã hoàn tiền cho người mua sau khi kiểm tra khiếu nại.', card_id: order.card_id, order_id, read: false },
-            ]);
-
-            // Email both parties (best-effort; must not block the refund).
+        const result = resolution as { replayed?: boolean } | null;
+        if (action === 'refund_buyer' && refundMailContext && !result?.replayed) {
             await sendOrderRefundEmails({
-                buyerEmail: (order as any).buyer?.email,
-                sellerEmail: (order as any).seller?.email,
-                cardName: (order as any).card?.name || 'Thẻ',
-                amount: order.total_paid,
+                buyerEmail: refundMailContext.buyerEmail,
+                sellerEmail: refundMailContext.sellerEmail,
+                cardName: refundMailContext.cardName,
+                amount: refundMailContext.amount,
                 orderId: order_id,
                 note: typeof note === 'string' ? note : undefined,
             });
-
-            return NextResponse.json({ success: true, status: 'cancelled' });
         }
 
-        // release_seller — seller gets the FULL amount (the 5% fee is taken at
-        // withdrawal, matching confirm_received / the auto-release model).
-        const { data: claimed } = await supabase
-            .from('orders')
-            .update({ status: 'completed', buyer_confirmed_at: now, updated_at: now })
-            .eq('id', order_id)
-            .eq('status', 'disputed')
-            .select('id')
-            .maybeSingle();
-        if (!claimed) {
-            return NextResponse.json({ error: 'already_resolved' }, { status: 409 });
-        }
-
-        const { error: payErr } = await supabase.rpc('credit_wallet', {
-            p_user_id: order.seller_id,
-            p_amount: order.amount,
-            p_type: 'marketplace_sale',
-            p_description: `Bán thẻ - Đơn #${shortId} (admin duyệt giao thành công)`,
-            p_reference_id: order_id,
-        });
-        if (payErr) {
-            await supabase.from('orders').update({ status: 'disputed', buyer_confirmed_at: null, updated_at: now }).eq('id', order_id).eq('status', 'completed');
-            throw payErr;
-        }
-
-        await supabase.from('notifications').insert([
-            { user_id: order.seller_id, type: 'order_completed', title: 'Đơn hàng hoàn tất', message: `Quản trị viên xác nhận đã giao thành công. ${Number(order.amount).toLocaleString()}đ đã cộng vào ví.`, card_id: order.card_id, order_id, read: false },
-            { user_id: order.buyer_id, type: 'order_completed', title: 'Đơn hàng đã hoàn tất', message: 'Quản trị viên đã xử lý đơn của bạn.', card_id: order.card_id, order_id, read: false },
-        ]);
-
-        return NextResponse.json({ success: true, status: 'completed' });
+        return NextResponse.json({ success: true, ...resolution });
     } catch (error: any) {
         console.error('Admin resolve dispute error:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });

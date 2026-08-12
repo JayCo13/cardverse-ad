@@ -1,7 +1,9 @@
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
+import { MODERATOR_COOKIE_NAME, verifyModeratorSession } from './moderatorSession';
 
 export type AdminRole = 'moderator' | 'admin' | null;
+export type AdminActor = { role: Exclude<AdminRole, null>; id: string } | null;
 
 /**
  * Determines the current user's role.
@@ -13,8 +15,13 @@ export type AdminRole = 'moderator' | 'admin' | null;
  * treat every authenticated user as an admin — only those a moderator promoted.
  */
 export async function getRole(): Promise<AdminRole> {
+    return (await getAdminActor())?.role || null;
+}
+
+export async function getAdminActor(): Promise<AdminActor> {
     const cookieStore = await cookies();
-    if (cookieStore.get('moderator_session')?.value === 'true') return 'moderator';
+    const moderatorSession = verifyModeratorSession(cookieStore.get(MODERATOR_COOKIE_NAME)?.value);
+    if (moderatorSession) return { role: 'moderator', id: `moderator:${moderatorSession.sid}` };
 
     try {
         const supabase = createServerClient(
@@ -28,7 +35,7 @@ export async function getRole(): Promise<AdminRole> {
             }
         );
         const { data: { user } } = await supabase.auth.getUser();
-        if (user && user.app_metadata?.role === 'admin') return 'admin';
+        if (user && user.app_metadata?.role === 'admin') return { role: 'admin', id: user.id };
     } catch { }
     return null;
 }

@@ -13,6 +13,7 @@ export const metadata: Metadata = {
 };
 
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
+import { LocalizationProvider } from "@/context/LocalizationContext";
 
 export default function RootLayout({
   children,
@@ -28,7 +29,7 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          {children}
+          <LocalizationProvider>{children}</LocalizationProvider>
         </ThemeProvider>
       </body>
     </html>
