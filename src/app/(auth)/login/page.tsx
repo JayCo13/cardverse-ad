@@ -126,13 +126,13 @@ export default function LoginPage() {
                     >
                         <Image
                             src="/logo-verse.png"
-                            alt="CardVerse Logo"
+                            alt="CardVerseHub Logo"
                             fill
                             className="object-contain"
                             priority
                         />
                     </motion.div>
-                    <p className="text-zinc-500 dark:text-zinc-400 mb-8 text-sm">Sign in to manage the CardVerse ecosystem.</p>
+                    <p className="text-zinc-500 dark:text-zinc-400 mb-8 text-sm">Sign in to manage the CardVerseHub ecosystem.</p>
 
                     <form onSubmit={handleLogin} className="w-full space-y-4">
 

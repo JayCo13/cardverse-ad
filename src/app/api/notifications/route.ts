@@ -86,7 +86,7 @@ export async function GET(request: NextRequest) {
 
             for (const withdrawal of recentWithdrawals) {
                 const profile = withdrawalProfileMap.get(withdrawal.user_id);
-                const sellerName = profile?.display_name || profile?.email || 'Seller CardVerse';
+                const sellerName = profile?.display_name || profile?.email || 'Seller CardVerseHub';
                 const isPending = withdrawal.status === 'pending' || withdrawal.status === 'processing';
                 notifications.push({
                     id: `withdrawal-${withdrawal.id}`,

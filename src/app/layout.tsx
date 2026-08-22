@@ -8,8 +8,8 @@ export const dynamic = 'force-dynamic';
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "CardVerse Admin Dashboard",
-  description: "Internal portal for managing the CardVerse ecosystem",
+  title: "CardVerseHub Admin Dashboard",
+  description: "Internal portal for managing the CardVerseHub ecosystem",
 };
 
 import { ThemeProvider } from "@/components/providers/ThemeProvider";

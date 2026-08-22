@@ -92,7 +92,7 @@ export async function POST(request: Request) {
         const transporter = createMailTransporter();
         const fromAddress = getFromAddress();
 
-        // Build email HTML with CardVerse branding
+        // Build email HTML with CardVerseHub branding
         const htmlBody = `
 <!DOCTYPE html>
 <html>
@@ -108,7 +108,7 @@ export async function POST(request: Request) {
                     <!-- Header -->
                     <tr>
                         <td style="padding: 32px 40px; background: linear-gradient(135deg, rgba(249,115,22,0.15), transparent); border-bottom: 1px solid rgba(255,255,255,0.05);">
-                            <h1 style="margin: 0; color: #f97316; font-size: 24px; font-weight: 700; letter-spacing: -0.5px;">CardVerse</h1>
+                            <h1 style="margin: 0; color: #f97316; font-size: 24px; font-weight: 700; letter-spacing: -0.5px;">CardVerseHub</h1>
                         </td>
                     </tr>
                     <!-- Subject -->
@@ -129,7 +129,7 @@ export async function POST(request: Request) {
                     <tr>
                         <td style="padding: 24px 40px; background-color: rgba(0,0,0,0.3); border-top: 1px solid rgba(255,255,255,0.05);">
                             <p style="margin: 0; color: #52525b; font-size: 12px; text-align: center;">
-                                &copy; ${new Date().getFullYear()} CardVerse. All rights reserved.
+                                &copy; ${new Date().getFullYear()} CardVerseHub. All rights reserved.
                             </p>
                         </td>
                     </tr>

@@ -16,7 +16,7 @@ export function buildTemplate(title: string, body: string) {
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="dark">
-    <title>CardVerse</title>
+    <title>CardVerseHub</title>
 </head>
 <body style="margin: 0; padding: 0; background-color: #08080a; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
     <!-- Preheader (hidden) -->
@@ -29,7 +29,7 @@ export function buildTemplate(title: string, body: string) {
                     <!-- Header with centered logo -->
                     <tr>
                         <td align="center" style="padding: 40px 40px 32px; background: linear-gradient(135deg, rgba(249,115,22,0.18) 0%, rgba(249,115,22,0.03) 55%, transparent 100%);">
-                            <img src="${logoUrl}" alt="CardVerse" height="40" style="display: block; height: 40px; width: auto; border: 0; outline: none; text-decoration: none;">
+                            <img src="${logoUrl}" alt="CardVerseHub" height="40" style="display: block; height: 40px; width: auto; border: 0; outline: none; text-decoration: none;">
                         </td>
                     </tr>
                     <!-- Accent divider -->
@@ -53,10 +53,10 @@ export function buildTemplate(title: string, body: string) {
                     <!-- Footer -->
                     <tr>
                         <td style="padding: 28px 40px; background-color: rgba(0,0,0,0.35); border-top: 1px solid rgba(255,255,255,0.06);">
-                            <p style="margin: 0 0 6px; color: #71717a; font-size: 13px; text-align: center; font-weight: 600;">CardVerse — Sàn giao dịch thẻ bài</p>
+                            <p style="margin: 0 0 6px; color: #71717a; font-size: 13px; text-align: center; font-weight: 600;">CardVerseHub — Sàn giao dịch thẻ bài</p>
                             <p style="margin: 0; color: #52525b; font-size: 12px; text-align: center; line-height: 1.6;">
                                 <a href="${appUrl}" style="color: #f97316; text-decoration: none;">${appUrl.replace(/^https?:\/\//, '')}</a>
-                                &nbsp;&middot;&nbsp; &copy; ${year} CardVerse. All rights reserved.
+                                &nbsp;&middot;&nbsp; &copy; ${year} CardVerseHub. All rights reserved.
                             </p>
                         </td>
                     </tr>
@@ -84,11 +84,11 @@ export async function sendKYCApproved(userEmail: string, fullName: string) {
         await transporter.sendMail({
             from,
             to: userEmail,
-            subject: '✅ Hồ sơ KYC đã được duyệt — CardVerse',
+            subject: '✅ Hồ sơ KYC đã được duyệt — CardVerseHub',
             html: buildTemplate(
                 '🎉 Chúc mừng, bạn đã trở thành Người bán!',
                 `<p style="margin: 0 0 16px; color: #e4e4e7;">Xin chào <strong style="color: #f97316;">${fullName}</strong>,</p>
-                <p style="margin: 0 0 20px;">Hồ sơ xác minh người bán của bạn đã được <strong style="color: #22c55e;">DUYỆT</strong> thành công. Tài khoản của bạn giờ đã sẵn sàng để kinh doanh trên CardVerse!</p>
+                <p style="margin: 0 0 20px;">Hồ sơ xác minh người bán của bạn đã được <strong style="color: #22c55e;">DUYỆT</strong> thành công. Tài khoản của bạn giờ đã sẵn sàng để kinh doanh trên CardVerseHub!</p>
 
                 <!-- Verified status card -->
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin: 0 0 24px;">
@@ -124,7 +124,7 @@ export async function sendKYCApproved(userEmail: string, fullName: string) {
                     <tr><td style="color: #f97316; font-size: 14px; width: 24px; vertical-align: top;">3.</td><td style="color: #b4b4bd; font-size: 14px;">Theo dõi đơn hàng trong mục “Quản lý bán hàng”.</td></tr>
                 </table>
 
-                <p style="margin: 24px 0 0; color: #71717a; font-size: 13px;">Cảm ơn bạn đã tham gia cộng đồng CardVerse. Chúc bạn giao dịch thuận lợi! 🚀</p>`
+                <p style="margin: 24px 0 0; color: #71717a; font-size: 13px;">Cảm ơn bạn đã tham gia cộng đồng CardVerseHub. Chúc bạn giao dịch thuận lợi! 🚀</p>`
             ),
         });
         console.log(`[Mail] KYC approved notification sent to ${userEmail}`);
@@ -141,7 +141,7 @@ export async function sendKYCRejected(userEmail: string, fullName: string, reaso
         await transporter.sendMail({
             from,
             to: userEmail,
-            subject: '❌ Hồ sơ KYC chưa được duyệt — CardVerse',
+            subject: '❌ Hồ sơ KYC chưa được duyệt — CardVerseHub',
             html: buildTemplate(
                 '❌ Hồ sơ chưa được duyệt',
                 `<p style="color: #e4e4e7;">Xin chào <strong style="color: #f97316;">${fullName}</strong>,</p>
