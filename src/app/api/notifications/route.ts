@@ -69,37 +69,34 @@ export async function GET(request: NextRequest) {
             }
         }
 
-        // Get recent withdrawal requests and attach a human-readable seller.
-        const { data: recentWithdrawals } = await supabase
-            .from('wallet_withdrawals')
-            .select('id, user_id, amount_requested, fee, amount_net, status, created_at, processed_at')
+        // Withdrawal events are persisted at request time. Unlike deriving the
+        // feed from the current withdrawal status, this remains visible even
+        // when an admin opens the dashboard after the request was processed.
+        const { data: recentWithdrawalNotifications } = await supabase
+            .from('admin_withdrawal_notifications')
+            .select('withdrawal_id, user_id, amount_requested, fee, amount_net, created_at')
             .order('created_at', { ascending: false })
             .limit(10);
 
-        if (recentWithdrawals?.length) {
-            const withdrawalUserIds = [...new Set(recentWithdrawals.map((withdrawal) => withdrawal.user_id))];
+        if (recentWithdrawalNotifications?.length) {
+            const withdrawalUserIds = [...new Set(recentWithdrawalNotifications.map((notification) => notification.user_id))];
             const { data: withdrawalProfiles } = await supabase
                 .from('profiles')
                 .select('id, display_name, email')
                 .in('id', withdrawalUserIds);
             const withdrawalProfileMap = new Map((withdrawalProfiles || []).map((profile) => [profile.id, profile]));
 
-            for (const withdrawal of recentWithdrawals) {
-                const profile = withdrawalProfileMap.get(withdrawal.user_id);
+            for (const notification of recentWithdrawalNotifications) {
+                const profile = withdrawalProfileMap.get(notification.user_id);
                 const sellerName = profile?.display_name || profile?.email || 'Seller CardVerse';
-                const isPending = withdrawal.status === 'pending' || withdrawal.status === 'processing';
                 notifications.push({
-                    id: `withdrawal-${withdrawal.id}`,
-                    type: isPending ? 'withdrawal_pending' : withdrawal.status === 'completed' ? 'withdrawal_completed' : 'withdrawal_rejected',
-                    title: isPending
-                        ? `💸 Yêu cầu rút tiền: ${sellerName}`
-                        : withdrawal.status === 'completed'
-                            ? `✅ Đã chuyển tiền: ${sellerName}`
-                            : `❌ Đã từ chối rút tiền: ${sellerName}`,
-                    message: `${withdrawal.amount_requested.toLocaleString('vi-VN')}đ · Phí ${withdrawal.fee.toLocaleString('vi-VN')}đ · Thực chuyển ${withdrawal.amount_net.toLocaleString('vi-VN')}đ`,
-                    read: !isPending,
-                    created_at: withdrawal.processed_at || withdrawal.created_at,
-                    link: '/withdrawals',
+                    id: `withdrawal-request-${notification.withdrawal_id}`,
+                    type: 'withdrawal_pending',
+                    title: `💸 Yêu cầu rút tiền mới: ${sellerName}`,
+                    message: `${notification.amount_requested.toLocaleString('vi-VN')}đ · Phí ${notification.fee.toLocaleString('vi-VN')}đ · Thực chuyển ${notification.amount_net.toLocaleString('vi-VN')}đ`,
+                    read: false,
+                    created_at: notification.created_at,
+                    link: `/withdrawals/${notification.withdrawal_id}`,
                 });
             }
         }

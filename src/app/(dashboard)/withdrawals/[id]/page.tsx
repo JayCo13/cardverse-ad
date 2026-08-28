@@ -175,7 +175,14 @@ export default function WithdrawalDetailPage({ params }: { params: Promise<{ id:
         body: JSON.stringify({ action: name, payload }),
       });
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || t('withdrawal_action_failed'));
+      if (!response.ok) {
+        const errorMessage = result.error === 'rejection_reason_required'
+          ? t('withdrawal_rejection_reason_required')
+          : result.error === 'rejection_forbidden'
+            ? t('withdrawal_rejection_forbidden')
+            : t('withdrawal_action_failed');
+        throw new Error(errorMessage);
+      }
       delete actionKeys.current[fingerprint];
       if (name === 'start_transfer') setFullDestination(result as StartTransferResult);
       else setFullDestination(null);

@@ -101,6 +101,11 @@ export function AdminNotificationsProvider({ children }: { children: React.React
                 { event: '*', schema: 'public', table: 'wallet_withdrawals' },
                 () => void refresh(),
             )
+            .on(
+                'postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'admin_withdrawal_notifications' },
+                () => void refresh(),
+            )
             .subscribe();
 
         return () => {
