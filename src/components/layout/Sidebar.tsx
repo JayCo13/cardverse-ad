@@ -32,7 +32,7 @@ export function Sidebar() {
         <div className="flex h-full w-64 flex-col bg-white border-r border-zinc-200 dark:bg-zinc-950 dark:border-zinc-800 transition-colors duration-300">
             <div className="flex h-16 shrink-0 items-center px-6 border-b border-zinc-200 dark:border-zinc-800">
                 <span className="text-xl font-bold bg-gradient-to-r from-orange-400 to-orange-500 dark:from-orange-400 dark:to-orange-600 bg-clip-text text-transparent">
-                    CardVerse Admin
+                    CardVerseHub Admin
                 </span>
             </div>
 

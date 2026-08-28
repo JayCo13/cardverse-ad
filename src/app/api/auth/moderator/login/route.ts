@@ -44,7 +44,21 @@ export async function POST(request: Request) {
     }
     if (!decision.credentials_valid) return genericError();
 
-    const session = issueModeratorSession();
+    // Issued outside the catch-all below. A missing or too-short
+    // MODERATOR_SESSION_SECRET throws here, and swallowing it into "Invalid
+    // credentials" tells the one person who typed the right password that they
+    // typed the wrong one — the credentials were already accepted two lines up.
+    let session: ReturnType<typeof issueModeratorSession>;
+    try {
+        session = issueModeratorSession();
+    } catch (error) {
+        console.error('[Auth] Cannot issue moderator session:', error);
+        return NextResponse.json(
+            { error: 'Đăng nhập chưa được cấu hình đầy đủ trên máy chủ. Liên hệ quản trị hệ thống.' },
+            { status: 500 },
+        );
+    }
+
     const response = NextResponse.json({ success: true, role: 'moderator' });
     response.cookies.set({
       name: MODERATOR_COOKIE_NAME,
@@ -56,7 +70,10 @@ export async function POST(request: Request) {
       maxAge: session.maxAge,
     });
     return response;
-  } catch {
+  } catch (error) {
+    // Anything unexpected still answers the same to the caller, but an operator
+    // must be able to tell a bad password from a broken deployment.
+    console.error('[Auth] Moderator login failed unexpectedly:', error);
     return genericError();
   }
 }

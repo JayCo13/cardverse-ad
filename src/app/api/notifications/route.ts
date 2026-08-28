@@ -88,7 +88,7 @@ export async function GET(request: NextRequest) {
 
             for (const notification of recentWithdrawalNotifications) {
                 const profile = withdrawalProfileMap.get(notification.user_id);
-                const sellerName = profile?.display_name || profile?.email || 'Seller CardVerse';
+                const sellerName = profile?.display_name || profile?.email || 'Seller CardVerseHub';
                 notifications.push({
                     id: `withdrawal-request-${notification.withdrawal_id}`,
                     type: 'withdrawal_pending',

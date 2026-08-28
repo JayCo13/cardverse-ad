@@ -120,6 +120,22 @@ export async function PATCH(request: NextRequest) {
         };
 
         if (action === 'approve') {
+            const row = verification as Record<string, unknown>;
+
+            // request_withdrawal refuses to pay out unless bank_verified_at and
+            // bank_account_name_verified are set. Those come from the NAPAS
+            // lookup — which is off — so without this an approved seller could
+            // never withdraw at all.
+            //
+            // Approving here IS the verification in that case: the reviewer has
+            // the holder name in front of them and confirms it against the
+            // identity document. Only stand in for the lookup when it did not
+            // already answer, so a real NAPAS result is never overwritten.
+            const verifiedHolder =
+                (row.bank_account_name_verified as string | null) ||
+                (row.bank_account_name as string | null) ||
+                null;
+
             // `.eq('status', 'pending')` makes this idempotent: a double-click or
             // a replayed request updates nothing the second time, so the user is
             // not re-approved and does not get a second email.
@@ -130,6 +146,8 @@ export async function PATCH(request: NextRequest) {
                     ...reviewerColumns,
                     reviewed_at: now,
                     updated_at: now,
+                    bank_account_name_verified: verifiedHolder,
+                    bank_verified_at: (row.bank_verified_at as string | null) || now,
                 })
                 .eq('id', verification_id)
                 .eq('status', 'pending')

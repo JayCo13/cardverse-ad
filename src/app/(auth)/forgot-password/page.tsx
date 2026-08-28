@@ -64,7 +64,7 @@ export default function ForgotPasswordPage() {
                     >
                         <Image
                             src="/logo-verse.png"
-                            alt="CardVerse Logo"
+                            alt="CardVerseHub Logo"
                             fill
                             className="object-contain"
                             priority
