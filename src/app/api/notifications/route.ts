@@ -27,6 +27,11 @@ export async function GET(request: NextRequest) {
             .select('id', { count: 'exact', head: true })
             .in('status', ['pending', 'processing']);
 
+        const { count: openContactRequests } = await supabase
+            .from('contact_requests')
+            .select('id', { count: 'exact', head: true })
+            .eq('status', 'open');
+
         // 2. Get disputed orders count
         const { count: disputedOrders } = await supabase
             .from('orders')
@@ -101,6 +106,28 @@ export async function GET(request: NextRequest) {
             }
         }
 
+        // Contact requests are their own inbox rather than an email-client
+        // side effect, so a new ticket always surfaces in the admin bell.
+        const { data: recentContactRequests } = await supabase
+            .from('contact_requests')
+            .select('id, name, email, subject, status, created_at, updated_at')
+            .order('created_at', { ascending: false })
+            .limit(10);
+
+        if (recentContactRequests) {
+            for (const contact of recentContactRequests) {
+                notifications.push({
+                    id: `contact-${contact.id}`,
+                    type: 'contact_request',
+                    title: `✉️ Liên hệ mới: ${contact.subject}`,
+                    message: `${contact.name} · ${contact.email}`,
+                    read: contact.status !== 'open',
+                    created_at: contact.updated_at || contact.created_at,
+                    link: `/contact-requests/${contact.id}`,
+                });
+            }
+        }
+
         // Get recent disputed orders
         const { data: recentDisputes } = await supabase
             .from('orders')
@@ -168,6 +195,7 @@ export async function GET(request: NextRequest) {
 
         const unreadCount = (pendingKYC || 0)
             + (pendingWithdrawals || 0)
+            + (openContactRequests || 0)
             + (disputedOrders || 0)
             + (newOrders || 0);
 
@@ -177,6 +205,7 @@ export async function GET(request: NextRequest) {
             badges: {
                 pendingKYC: pendingKYC || 0,
                 pendingWithdrawals: pendingWithdrawals || 0,
+                openContactRequests: openContactRequests || 0,
                 disputedOrders: disputedOrders || 0,
                 newOrders24h: newOrders || 0,
             },

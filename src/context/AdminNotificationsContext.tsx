@@ -18,6 +18,7 @@ export type AdminNotification = {
 export type AdminNotificationBadges = {
     pendingKYC: number;
     pendingWithdrawals: number;
+    openContactRequests: number;
     disputedOrders: number;
     newOrders24h: number;
 };
@@ -32,6 +33,7 @@ type AdminNotificationsContextValue = {
 const EMPTY_BADGES: AdminNotificationBadges = {
     pendingKYC: 0,
     pendingWithdrawals: 0,
+    openContactRequests: 0,
     disputedOrders: 0,
     newOrders24h: 0,
 };
@@ -90,7 +92,7 @@ export function AdminNotificationsProvider({ children }: { children: React.React
         if (role !== 'admin') return;
 
         const channel = supabase
-            .channel('admin-kyc-notifications')
+            .channel('admin-operational-notifications')
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'seller_verifications' },
@@ -104,6 +106,11 @@ export function AdminNotificationsProvider({ children }: { children: React.React
             .on(
                 'postgres_changes',
                 { event: 'INSERT', schema: 'public', table: 'admin_withdrawal_notifications' },
+                () => void refresh(),
+            )
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'contact_requests' },
                 () => void refresh(),
             )
             .subscribe();
