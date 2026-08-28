@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ShieldCheck, CheckCircle, XCircle, Clock, Eye, Loader2, AlertTriangle } from "lucide-react";
+import { ShieldCheck, CheckCircle, XCircle, Clock, Eye, Loader2, AlertTriangle, Ban, Bot } from "lucide-react";
 import Image from "next/image";
 
 type Verification = {
@@ -51,27 +51,54 @@ type Verification = {
     } | null;
 };
 
+/** A submission refused outright: it never became a `seller_verifications` row. */
+type BlockedAttempt = {
+    id: string;
+    matched_axis: 'document' | 'bank' | 'both';
+    created_at: string;
+    bank_account_number: string | null;
+    user: { id?: string; email?: string; display_name?: string };
+    matched_users: Array<{ id?: string; email?: string; display_name?: string }>;
+};
+
 const STATUS_TABS = [
     { value: 'pending', label: 'Chờ duyệt', icon: <Clock className="h-4 w-4" /> },
     { value: 'approved', label: 'Đã duyệt', icon: <CheckCircle className="h-4 w-4" /> },
     { value: 'rejected', label: 'Từ chối', icon: <XCircle className="h-4 w-4" /> },
+    { value: 'blocked', label: 'Bị chặn', icon: <Ban className="h-4 w-4" /> },
 ];
+
+const AXIS_LABEL: Record<BlockedAttempt['matched_axis'], string> = {
+    document: 'Trùng giấy tờ tùy thân',
+    bank: 'Trùng số tài khoản ngân hàng',
+    both: 'Trùng cả giấy tờ lẫn số tài khoản',
+};
 
 export default function KYCPage() {
     const [verifications, setVerifications] = useState<Verification[]>([]);
+    const [blocked, setBlocked] = useState<BlockedAttempt[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [activeStatus, setActiveStatus] = useState('pending');
     const [actionLoading, setActionLoading] = useState<string | null>(null);
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const [rejectionReason, setRejectionReason] = useState('');
     const [rejectingId, setRejectingId] = useState<string | null>(null);
+    const [actionError, setActionError] = useState<string | null>(null);
 
     const fetchVerifications = async (status: string) => {
         setIsLoading(true);
         try {
+            if (status === 'blocked') {
+                const res = await fetch('/api/kyc/blocked');
+                const data = await res.json();
+                setBlocked(data.blocks || []);
+                setVerifications([]);
+                return;
+            }
             const res = await fetch(`/api/kyc?status=${status}`);
             const data = await res.json();
             setVerifications(data.verifications || []);
+            setBlocked([]);
         } catch (err) {
             console.error('Failed to fetch:', err);
         } finally {
@@ -89,18 +116,24 @@ export default function KYCPage() {
             return;
         }
         setActionLoading(id);
+        setActionError(null);
         try {
             const res = await fetch('/api/kyc', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ verification_id: id, action, rejection_reason: rejectionReason }),
             });
-            if (!res.ok) throw new Error('Action failed');
+            const payload = await res.json().catch(() => ({}));
+            // A 409 here is the duplicate guard refusing to mint a second seller
+            // for the same identity — the admin needs to read that, not a silent
+            // no-op followed by an unchanged list.
+            if (!res.ok) throw new Error(payload.error || 'Action failed');
             fetchVerifications(activeStatus);
             setRejectingId(null);
             setRejectionReason('');
         } catch (err) {
             console.error('Action error:', err);
+            setActionError(err instanceof Error ? err.message : 'Action failed');
         } finally {
             setActionLoading(null);
         }
@@ -135,11 +168,70 @@ export default function KYCPage() {
                 ))}
             </div>
 
+            {actionError && (
+                <div className="flex items-start gap-2 rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>{actionError}</span>
+                </div>
+            )}
+
             {/* List */}
             {isLoading ? (
                 <div className="flex items-center justify-center py-16">
                     <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
                 </div>
+            ) : activeStatus === 'blocked' ? (
+                blocked.length === 0 ? (
+                    <div className="text-center py-16 text-zinc-500">
+                        Chưa có lượt đăng ký nào bị chặn.
+                    </div>
+                ) : (
+                    <div className="space-y-3">
+                        <p className="text-sm text-zinc-500">
+                            Các lượt đăng ký bị từ chối ngay vì giấy tờ hoặc số tài khoản đã thuộc về một tài khoản khác.
+                            Chúng không tạo hồ sơ nào. Muốn gỡ chặn: từ chối hồ sơ của tài khoản đang giữ danh tính đó.
+                        </p>
+                        {blocked.map(b => (
+                            <div key={b.id} className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                    <div>
+                                        <p className="font-semibold text-zinc-900 dark:text-white">
+                                            {b.user.display_name || b.user.email || b.user.id}
+                                        </p>
+                                        {b.user.email && b.user.display_name && (
+                                            <p className="text-sm text-zinc-500">{b.user.email}</p>
+                                        )}
+                                    </div>
+                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-3 py-1 text-xs font-medium text-red-700 dark:bg-red-950 dark:text-red-300">
+                                        <Ban className="h-3.5 w-3.5" /> {AXIS_LABEL[b.matched_axis]}
+                                    </span>
+                                </div>
+                                <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+                                    <div>
+                                        <p className="text-xs text-zinc-500">Số tài khoản đã dùng</p>
+                                        <p className="font-mono text-zinc-900 dark:text-zinc-100">{b.bank_account_number || '—'}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-zinc-500">Thời điểm</p>
+                                        <p className="text-zinc-900 dark:text-zinc-100">
+                                            {new Date(b.created_at).toLocaleString('vi-VN')}
+                                        </p>
+                                    </div>
+                                </div>
+                                {b.matched_users.length > 0 && (
+                                    <div className="mt-3 rounded-lg bg-zinc-50 p-3 dark:bg-zinc-800/60">
+                                        <p className="text-xs text-zinc-500">Trùng với tài khoản</p>
+                                        <ul className="mt-1 space-y-0.5 text-sm text-zinc-900 dark:text-zinc-100">
+                                            {b.matched_users.map((m, i) => (
+                                                <li key={i}>{m.display_name || m.email || m.id}</li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                )
             ) : verifications.length === 0 ? (
                 <div className="text-center py-16 text-zinc-500">
                     Không có yêu cầu nào.
@@ -162,8 +254,16 @@ export default function KYCPage() {
                                                 </div>
                                             )}
                                             <div>
-                                                <h3 className="font-semibold text-lg text-zinc-900 dark:text-zinc-100 tracking-tight">
+                                                <h3 className="font-semibold text-lg text-zinc-900 dark:text-zinc-100 tracking-tight flex items-center gap-2">
                                                     {v.full_name}
+                                                    {v.auto_approved && (
+                                                        <span
+                                                            title="Hệ thống tự duyệt, không qua admin"
+                                                            className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                                                        >
+                                                            <Bot className="h-3 w-3" /> Tự duyệt
+                                                        </span>
+                                                    )}
                                                 </h3>
                                                 <p className="text-sm text-zinc-500 dark:text-zinc-400">
                                                     {v.user?.email || v.user?.display_name || v.user_id}

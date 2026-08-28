@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAdminActor } from '@/utils/auth/getRole';
 import { createAdminClient } from '@/utils/supabase/admin';
+import { sendWithdrawalRejected } from '@/utils/mail/withdrawal-notifications';
 
 const ACTIONS = new Set([
   'verify_for_transfer',
@@ -61,9 +62,17 @@ export async function PATCH(
       }
     }
 
+    const nestedPayload = body.payload && typeof body.payload === 'object' && !Array.isArray(body.payload)
+      ? body.payload
+      : null;
     const payload = action === 'reject'
-      ? { reason: body.reason || body.rejection_reason }
-      : body.payload || {
+      ? {
+        // The statement UI submits every action in `payload`. Keep accepting
+        // the former top-level fields for older callers while preserving the
+        // rejection reason sent by the current UI.
+        reason: nestedPayload?.reason ?? body.reason ?? body.rejection_reason,
+      }
+      : nestedPayload || {
         transfer_reference: body.transfer_reference,
         return_reference: body.return_reference,
         reason: body.reason,
@@ -88,6 +97,30 @@ export async function PATCH(
           : code.includes('conflict') || code.includes('mismatch') || code.includes('not_') ? 409
             : 400;
       return NextResponse.json({ error: code, ...data }, { status });
+    }
+
+    // The database records the in-app notification atomically. Send email only
+    // for the first successful rejection so an idempotent retry cannot email
+    // the seller twice; a delivery failure never changes the financial result.
+    if (action === 'reject' && data.notification_created === true) {
+      const reason = typeof payload.reason === 'string' ? payload.reason.trim() : '';
+      const userId = typeof data.user_id === 'string' ? data.user_id : '';
+      const amountRequested = typeof data.amount_requested === 'number' ? data.amount_requested : 0;
+      if (reason && userId && amountRequested > 0) {
+        const { data: profile } = await admin
+          .from('profiles')
+          .select('email, display_name')
+          .eq('id', userId)
+          .maybeSingle();
+        if (profile?.email) {
+          await sendWithdrawalRejected({
+            email: profile.email,
+            displayName: profile.display_name,
+            amountRequested,
+            reason,
+          });
+        }
+      }
     }
 
     return NextResponse.json(data, {
