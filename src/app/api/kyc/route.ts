@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/utils/supabase/admin';
 import { sendKYCApproved, sendKYCRejected } from '@/utils/mail/kyc-notifications';
-import { getRole } from '@/utils/auth/getRole';
+import { getRole, getAdminActor } from '@/utils/auth/getRole';
 
 // Resolve a user's email reliably. The profiles row may be missing or have an
 // empty email (the seller_verifications FK points at auth.users, not profiles),
@@ -82,8 +82,15 @@ export async function GET(request: NextRequest) {
 }
 
 // PATCH: Approve or reject a verification
+//
+// The consumer app now auto-approves clean submissions and hard-blocks reused
+// identities before they ever reach this queue, so this path mostly handles
+// legacy rows and the KYC_AUTO_APPROVE=false kill switch. It is still the one
+// place a human can mint a seller, so it re-checks everything the automated
+// path checks.
 export async function PATCH(request: NextRequest) {
-    if (!await getRole()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    const actor = await getAdminActor();
+    if (!actor) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     try {
         const supabase = createAdminClient();
         const body = await request.json();
@@ -104,30 +111,61 @@ export async function PATCH(request: NextRequest) {
             return NextResponse.json({ error: 'Verification not found' }, { status: 404 });
         }
 
+        const now = new Date().toISOString();
+        // A moderator is not a Supabase user, so its id is not a uuid and can
+        // only go in the text column.
+        const reviewerColumns = {
+            reviewed_by: actor.role === 'admin' ? actor.id : null,
+            reviewed_by_actor: actor.id,
+        };
+
         if (action === 'approve') {
-            // Update verification status
-            await supabase
+            // `.eq('status', 'pending')` makes this idempotent: a double-click or
+            // a replayed request updates nothing the second time, so the user is
+            // not re-approved and does not get a second email.
+            const { data: approved, error: approveError } = await supabase
                 .from('seller_verifications')
                 .update({
                     status: 'approved',
-                    reviewed_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString(),
+                    ...reviewerColumns,
+                    reviewed_at: now,
+                    updated_at: now,
                 })
-                .eq('id', verification_id);
+                .eq('id', verification_id)
+                .eq('status', 'pending')
+                .select('id');
 
-            // Update user profile
-            await supabase
+            if (approveError) {
+                // The partial unique indexes from
+                // 20260828000200_seller_duplicate_hard_block.sql refuse to let a
+                // second live row hold the same document or payout account.
+                if ((approveError as { code?: string }).code === '23505') {
+                    return NextResponse.json({
+                        error: 'Hồ sơ này trùng giấy tờ hoặc số tài khoản ngân hàng với một tài khoản khác đã được duyệt. '
+                             + 'Hãy từ chối hồ sơ cũ trước nếu muốn chuyển sang tài khoản này.',
+                    }, { status: 409 });
+                }
+                throw approveError;
+            }
+            if (!approved || approved.length === 0) {
+                return NextResponse.json({ error: 'Hồ sơ không còn ở trạng thái chờ duyệt.' }, { status: 409 });
+            }
+
+            const { error: profileError } = await supabase
                 .from('profiles')
                 .update({ seller_verified: true })
                 .eq('id', verification.user_id);
+            // Not fatal on its own, but it means the user is approved without
+            // the flag the UI reads — worth shouting about rather than swallowing.
+            if (profileError) console.error('[Admin KYC] Failed to set seller_verified:', profileError);
 
-            // Notify user via in-app notification
-            await supabase.from('notifications').insert({
+            const { error: notifyError } = await supabase.from('notifications').insert({
                 user_id: verification.user_id,
                 type: 'kyc_approved',
                 title: '✅ Xác minh đã được duyệt!',
                 message: 'Tài khoản của bạn đã được xác minh. Bạn có thể bắt đầu đăng bán thẻ ngay!',
             });
+            if (notifyError) console.error('[Admin KYC] Failed to insert notification:', notifyError);
 
             // Send email notification
             const email = await resolveUserEmail(supabase, verification.user_id);
@@ -141,23 +179,39 @@ export async function PATCH(request: NextRequest) {
 
         } else {
             // Reject
-            await supabase
+            const { data: rejected, error: rejectError } = await supabase
                 .from('seller_verifications')
                 .update({
                     status: 'rejected',
                     rejection_reason: rejection_reason || 'Không đạt yêu cầu',
-                    reviewed_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString(),
+                    ...reviewerColumns,
+                    reviewed_at: now,
+                    updated_at: now,
                 })
-                .eq('id', verification_id);
+                .eq('id', verification_id)
+                .neq('status', 'rejected')
+                .select('id');
 
-            // Notify user via in-app notification
-            await supabase.from('notifications').insert({
+            if (rejectError) throw rejectError;
+            if (!rejected || rejected.length === 0) {
+                return NextResponse.json({ error: 'Hồ sơ đã bị từ chối trước đó.' }, { status: 409 });
+            }
+
+            // Rejecting a previously approved seller must also take the listing
+            // right away, otherwise they keep selling with a revoked profile.
+            const { error: profileError } = await supabase
+                .from('profiles')
+                .update({ seller_verified: false })
+                .eq('id', verification.user_id);
+            if (profileError) console.error('[Admin KYC] Failed to clear seller_verified:', profileError);
+
+            const { error: notifyError } = await supabase.from('notifications').insert({
                 user_id: verification.user_id,
                 type: 'kyc_rejected',
                 title: '❌ Xác minh bị từ chối',
                 message: `Lý do: ${rejection_reason || 'Không đạt yêu cầu'}. Bạn có thể gửi lại.`,
             });
+            if (notifyError) console.error('[Admin KYC] Failed to insert notification:', notifyError);
 
             // Send email notification
             const email = await resolveUserEmail(supabase, verification.user_id);
