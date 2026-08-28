@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Bell, MagnifyingGlass, SignOut, ShieldStar, UserCircle, Sun, Moon, CheckCircle, XCircle, Warning, ShoppingCart, Info, Bank } from "@phosphor-icons/react";
+import { Bell, MagnifyingGlass, SignOut, ShieldStar, UserCircle, Sun, Moon, CheckCircle, XCircle, Warning, ShoppingCart, Info, Bank, EnvelopeSimple } from "@phosphor-icons/react";
 import { createClient } from "@/utils/supabase/client";
 import { useRouter } from "next/navigation";
 import { useRole } from "@/context/RoleContext";
@@ -61,6 +61,7 @@ export function Topbar() {
             case 'withdrawal_pending': return <Bank className="h-6 w-6 text-orange-500 dark:text-orange-400" weight="fill" />;
             case 'withdrawal_completed': return <CheckCircle className="h-6 w-6 text-green-500 dark:text-green-400" weight="fill" />;
             case 'withdrawal_rejected': return <XCircle className="h-6 w-6 text-red-500 dark:text-red-400" weight="fill" />;
+            case 'contact_request': return <EnvelopeSimple className="h-6 w-6 text-orange-500 dark:text-orange-400" weight="fill" />;
             default: return <Info className="h-6 w-6 text-zinc-400 dark:text-zinc-500" weight="fill" />;
         }
     };
@@ -166,6 +167,11 @@ export function Topbar() {
                                             {badges.pendingWithdrawals} Rút tiền
                                         </span>
                                     )}
+                                    {badges.openContactRequests > 0 && (
+                                        <span className="px-2 py-0.5 rounded-full bg-orange-100 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 text-[10px] font-bold">
+                                            {badges.openContactRequests} Liên hệ
+                                        </span>
+                                    )}
                                     {badges.disputedOrders > 0 && (
                                         <span className="px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400 text-[10px] font-bold">
                                             {badges.disputedOrders} Dispute
@@ -231,6 +237,13 @@ export function Topbar() {
                                     className="text-xs text-orange-500 hover:text-orange-600 font-medium"
                                 >
                                     Withdrawals →
+                                </Link>
+                                <Link
+                                    href="/contact-requests"
+                                    onClick={() => setIsOpen(false)}
+                                    className="text-xs text-orange-500 hover:text-orange-600 font-medium"
+                                >
+                                    Liên hệ →
                                 </Link>
                                 <Link
                                     href="/marketplace"

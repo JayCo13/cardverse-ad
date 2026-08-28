@@ -20,6 +20,7 @@ const navigation = [
     { name: "Payments", href: "/payments", icon: CurrencyDollar },
     { name: "Withdrawals", href: "/withdrawals", icon: Bank, badgeKey: "pendingWithdrawals" as const },
     { name: "Subscribers", href: "/subscribers", icon: EnvelopeSimple },
+    { name: "Contact requests", href: "/contact-requests", icon: EnvelopeSimple, badgeKey: "openContactRequests" as const },
     { name: "KYC Sellers", href: "/kyc", icon: ShieldCheck, badgeKey: "pendingKYC" as const },
     { name: "Marketplace", href: "/marketplace", icon: Storefront, badgeKey: "disputedOrders" as const },
 ];
