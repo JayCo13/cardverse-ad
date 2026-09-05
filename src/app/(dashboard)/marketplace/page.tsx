@@ -15,6 +15,20 @@ type Order = {
     tracking_number: string | null;
     dispute_reason: string | null;
     created_at: string;
+    /** Present on disputed orders only — computed by dispute_evidence_verdict. */
+    evidence: {
+        has_buyer_video: boolean;
+        has_seller_video: boolean;
+        buyer_video_url: string | null;
+        seller_video_url: string | null;
+        delivery_state: 'delivered' | 'not_delivered' | 'unverified';
+        carrier_status: string | null;
+        shipping_provider: string | null;
+        tracking_number: string | null;
+        verdict: 'not_delivered' | 'delivery_unverified' | 'contested'
+            | 'seller_missing_evidence' | 'buyer_missing_evidence' | 'no_evidence';
+        recommended_action: 'refund_buyer' | 'release_seller' | null;
+    } | null;
     card: { id: string; name: string; image_url: string; category: string } | null;
     buyer: { id: string; display_name: string; email: string } | null;
     seller: { id: string; display_name: string; email: string; seller_verified: boolean } | null;
@@ -26,6 +40,59 @@ type Stats = {
     disputed: number;
     totalRevenue: number;
     totalVolume: number;
+};
+
+/** Public tracking pages, for the carriers the platform has no integration with. */
+const CARRIER_TRACKING: Record<string, { name: string; url: string }> = {
+    ghn: { name: 'GHN', url: 'https://donhang.ghn.vn/?order_code={code}' },
+    vtp: { name: 'Viettel Post', url: 'https://viettelpost.com.vn/tra-cuu-hanh-trinh-don/?peopleTracking={code}' },
+    shopee: { name: 'SPX', url: 'https://spx.vn/track?TrackingID={code}' },
+    self: { name: 'Tự giao', url: '' },
+};
+
+const trackingLink = (provider: string | null, code: string | null): { name: string; url: string } | null => {
+    if (!provider || !code) return null;
+    const carrier = CARRIER_TRACKING[provider];
+    if (!carrier?.url) return null;
+    return { name: carrier.name, url: carrier.url.replace('{code}', encodeURIComponent(code)) };
+};
+
+/**
+ * What the evidence rule says about a dispute. A recommendation, never an
+ * automatic payout: a parcel the carrier lost is a real dispute that no
+ * unboxing video could ever exist for, and only a person can see that.
+ */
+const VERDICT_LABELS: Record<string, { label: string; hint: string; color: string }> = {
+    not_delivered: {
+        label: 'Hãng báo chưa giao',
+        hint: 'Người bán chưa chứng minh được hàng đã tới nơi → hoàn tiền. Video không xét ở ca này.',
+        color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300',
+    },
+    delivery_unverified: {
+        label: 'Không xác minh được việc giao hàng',
+        hint: 'Hãng này chưa tích hợp nên hệ thống không biết hàng đã tới chưa. Mở link tra cứu bên dưới và tự kiểm tra trước khi quyết.',
+        color: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300',
+    },
+    contested: {
+        label: 'Cả hai đều có video',
+        hint: 'Xem cả hai video rồi tự quyết — quy tắc không nghiêng về bên nào.',
+        color: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300',
+    },
+    seller_missing_evidence: {
+        label: 'Người bán không có video',
+        hint: 'Người mua có video mở hộp, người bán không chứng minh được đã gói gì → hoàn tiền.',
+        color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300',
+    },
+    buyer_missing_evidence: {
+        label: 'Người mua không có video',
+        hint: 'Người bán có video đóng gói, người mua không chứng minh được đã nhận gì → giải ngân.',
+        color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300',
+    },
+    no_evidence: {
+        label: 'Không bên nào có video',
+        hint: 'Không có gì để phân xử → giải ngân cho người bán.',
+        color: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300',
+    },
 };
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
@@ -189,6 +256,46 @@ export default function MarketplacePage() {
                                             {new Date(order.created_at).toLocaleDateString('vi-VN')}
                                         </td>
                                         <td className="px-4 py-3">
+                                            {order.status === 'disputed' && order.evidence && (() => {
+                                                const v = VERDICT_LABELS[order.evidence.verdict];
+                                                const rec = order.evidence.recommended_action;
+                                                return (
+                                                    <div className="mb-2 max-w-[230px] space-y-1">
+                                                        <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-medium ${v.color}`}>
+                                                            {v.label}
+                                                        </span>
+                                                        <p className="text-[11px] leading-4 text-zinc-500">{v.hint}</p>
+                                                        {(() => {
+                                                            const link = trackingLink(order.evidence!.shipping_provider, order.evidence!.tracking_number);
+                                                            if (!link) return order.evidence!.delivery_state === 'unverified' ? (
+                                                                <p className="text-[11px] text-zinc-500">Không có mã vận đơn tra cứu được.</p>
+                                                            ) : null;
+                                                            return (
+                                                                <a href={link.url} target="_blank" rel="noopener noreferrer" className="block text-[11px] text-blue-500 underline">
+                                                                    Tra cứu {link.name}: {order.evidence!.tracking_number}
+                                                                </a>
+                                                            );
+                                                        })()}
+                                                        <div className="flex gap-2 text-[11px]">
+                                                            {order.evidence.seller_video_url && (
+                                                                <a href={order.evidence.seller_video_url} target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">
+                                                                    Video đóng gói
+                                                                </a>
+                                                            )}
+                                                            {order.evidence.buyer_video_url && (
+                                                                <a href={order.evidence.buyer_video_url} target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">
+                                                                    Video mở hộp
+                                                                </a>
+                                                            )}
+                                                        </div>
+                                                        {rec && (
+                                                            <p className="text-[11px] font-medium text-zinc-600 dark:text-zinc-400">
+                                                                Khuyến nghị: {rec === 'refund_buyer' ? 'Hoàn tiền' : 'Release'}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })()}
                                             {order.status === 'disputed' && (
                                                 <div className="flex gap-1">
                                                     <button

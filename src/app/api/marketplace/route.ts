@@ -34,6 +34,20 @@ export async function GET(request: NextRequest) {
 
         if (ordersResult.error) throw ordersResult.error;
 
+        // The evidence rule lives in the database function, not here: what the
+        // reviewer is shown and what the policy says must not be able to drift.
+        // Only disputed rows need it, and there are rarely many in one page.
+        const orders = ordersResult.data || [];
+        const disputed = orders.filter(o => o.status === 'disputed');
+        const verdicts = await Promise.all(disputed.map(async (order) => {
+            const { data } = await supabase.rpc('dispute_evidence_verdict', { p_order_id: order.id });
+            return [order.id, data] as const;
+        }));
+        const verdictById = new Map(verdicts);
+        for (const order of orders) {
+            (order as Record<string, unknown>).evidence = verdictById.get(order.id) ?? null;
+        }
+
         const allOrders = statsResult.data;
         const stats = {
             total: allOrders?.length || 0,
@@ -43,7 +57,7 @@ export async function GET(request: NextRequest) {
             totalVolume: allOrders?.filter(o => o.status === 'completed').reduce((sum, o) => sum + (o.amount || 0), 0) || 0,
         };
 
-        return NextResponse.json({ orders: ordersResult.data || [], stats });
+        return NextResponse.json({ orders, stats });
     } catch (error: any) {
         console.error('Admin marketplace error:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
@@ -101,6 +115,28 @@ export async function PATCH(request: NextRequest) {
                 cardName: mailOrder.card?.name || 'Thẻ',
                 amount: Number(mailOrder.total_paid),
             };
+        }
+
+        // Snapshot what the evidence looked like at the moment of the decision.
+        // Written before the resolution so a reviewer can always see what the
+        // call was made against, including when it went against the rule.
+        const { data: verdictAtDecision } = await supabase.rpc('dispute_evidence_verdict', { p_order_id: order_id });
+        if (verdictAtDecision) {
+            const { data: current } = await supabase
+                .from('orders').select('metadata').eq('id', order_id).maybeSingle();
+            const existing = (current?.metadata && typeof current.metadata === 'object') ? current.metadata : {};
+            await supabase.from('orders').update({
+                metadata: {
+                    ...existing,
+                    dispute_decision: {
+                        action,
+                        actor_id: actor.id,
+                        actor_role: actor.role,
+                        decided_at: new Date().toISOString(),
+                        evidence: verdictAtDecision,
+                    },
+                },
+            }).eq('id', order_id);
         }
 
         const { data: resolution, error: resolutionError } = await supabase.rpc('resolve_marketplace_dispute', {
