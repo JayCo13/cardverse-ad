@@ -23,76 +23,78 @@ export async function GET(request: Request) {
 
     try {
         const supabaseAdmin = createAdminClient();
-        let allUsers: any[] = [];
-        let total = 0;
-
-        // When the viewer is an admin (not moderator), they should only see regular users
         const isAdminViewer = role === 'admin';
 
-        if (searchParam || filterParam !== 'all' || isAdminViewer) {
-            // Fetch a large block of users to filter in memory when a specific query is applied
-            const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-            if (error) {
-                console.error('[/api/users GET] Supabase error:', error.message);
-                throw error;
-            }
-
-            let filtered = data.users;
-
-            // Apply text search
-            if (searchParam) {
-                const s = searchParam.toLowerCase();
-                filtered = filtered.filter(u => u.email?.toLowerCase().includes(s) || u.id.toLowerCase().includes(s));
-            }
-
-            // Apply selected dropdown filter
-            if (filterParam === 'active_30') {
-                const thirtyDaysAgo = new Date();
-                thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-                filtered = filtered.filter(u => u.last_sign_in_at && new Date(u.last_sign_in_at) > thirtyDaysAgo);
-            } else if (filterParam === 'new_30') {
-                const thirtyDaysAgo = new Date();
-                thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-                filtered = filtered.filter(u => new Date(u.created_at) > thirtyDaysAgo);
-            } else if (filterParam === 'never_signed_in') {
-                filtered = filtered.filter(u => !u.last_sign_in_at);
-            } else if (filterParam === 'role_admin') {
-                filtered = filtered.filter(u => u.app_metadata?.role === 'admin');
-            } else if (filterParam === 'role_user') {
-                filtered = filtered.filter(u => !u.app_metadata?.role || u.app_metadata?.role !== 'admin');
-            }
-
-            // If the viewer is an admin (not mod), hide other admins from the list
-            if (isAdminViewer) {
-                filtered = filtered.filter(u => u.app_metadata?.role !== 'admin');
-            }
-
-            total = filtered.length;
-
-            // Apply manual pagination to the filtered array
-            const startIndex = (page - 1) * perPage;
-            const endIndex = startIndex + perPage;
-            allUsers = filtered.slice(startIndex, endIndex);
-
-        } else {
-            // Standard paginated fetch
-            const { data, error } = await supabaseAdmin.auth.admin.listUsers({
-                page,
-                perPage
-            });
-
-            if (error) {
-                console.error('[/api/users GET] Supabase error:', error.message);
-                throw error;
-            }
-
-            allUsers = data.users;
-            total = (data as any).total || data.users.length;
+        // Fetch user list (up to 1000) for global stats, filtering, and accurate pagination
+        const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+        if (error) {
+            console.error('[/api/users GET] Supabase error:', error.message);
+            throw error;
         }
 
+        const rawUsers = data?.users || [];
+
+        // Calculate global statistics across users (before search/filter)
+        const now = new Date();
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+        const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).getTime();
+        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).getTime();
+
+        const baseStatsUsers = isAdminViewer
+            ? rawUsers.filter(u => u.app_metadata?.role !== 'admin')
+            : rawUsers;
+
+        const stats = {
+            total: baseStatsUsers.length,
+            newToday: baseStatsUsers.filter(u => new Date(u.created_at).getTime() >= startOfToday).length,
+            new7d: baseStatsUsers.filter(u => new Date(u.created_at).getTime() >= sevenDaysAgo).length,
+            new30d: baseStatsUsers.filter(u => new Date(u.created_at).getTime() >= thirtyDaysAgo).length,
+            active30d: baseStatsUsers.filter(u => u.last_sign_in_at && new Date(u.last_sign_in_at).getTime() >= thirtyDaysAgo).length,
+            neverActive: baseStatsUsers.filter(u => !u.last_sign_in_at).length,
+            admins: rawUsers.filter(u => u.app_metadata?.role === 'admin').length,
+        };
+
+        let filtered = [...rawUsers];
+
+        // If the viewer is an admin (not mod), hide other admins from the list
+        if (isAdminViewer) {
+            filtered = filtered.filter(u => u.app_metadata?.role !== 'admin');
+        }
+
+        // Apply text search
+        if (searchParam) {
+            const s = searchParam.toLowerCase();
+            filtered = filtered.filter(u => u.email?.toLowerCase().includes(s) || u.id.toLowerCase().includes(s));
+        }
+
+        // Apply selected dropdown / card filter
+        if (filterParam === 'new_today') {
+            filtered = filtered.filter(u => new Date(u.created_at).getTime() >= startOfToday);
+        } else if (filterParam === 'new_7') {
+            filtered = filtered.filter(u => new Date(u.created_at).getTime() >= sevenDaysAgo);
+        } else if (filterParam === 'new_30') {
+            filtered = filtered.filter(u => new Date(u.created_at).getTime() >= thirtyDaysAgo);
+        } else if (filterParam === 'active_30') {
+            filtered = filtered.filter(u => u.last_sign_in_at && new Date(u.last_sign_in_at).getTime() >= thirtyDaysAgo);
+        } else if (filterParam === 'never_signed_in') {
+            filtered = filtered.filter(u => !u.last_sign_in_at);
+        } else if (filterParam === 'role_admin') {
+            filtered = filtered.filter(u => u.app_metadata?.role === 'admin');
+        } else if (filterParam === 'role_user') {
+            filtered = filtered.filter(u => !u.app_metadata?.role || u.app_metadata?.role !== 'admin');
+        }
+
+        // Always sort by created_at desc (newest users first)
+        filtered.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+        const total = filtered.length;
+        const startIndex = (page - 1) * perPage;
+        const paginatedUsers = filtered.slice(startIndex, startIndex + perPage);
+
         return NextResponse.json({
-            users: allUsers,
+            users: paginatedUsers,
             total,
+            stats,
             viewerRole: role
         }, { status: 200 });
     } catch (error: any) {

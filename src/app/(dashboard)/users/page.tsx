@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     UsersThree, Trash, Plus, ShieldStar, WarningCircle,
-    CircleNotch, X, EnvelopeSimple, LockKey, MagnifyingGlass, Funnel, Prohibit, CheckCircle
+    CircleNotch, X, EnvelopeSimple, LockKey, MagnifyingGlass, Funnel, Prohibit, CheckCircle,
+    UserPlus, CalendarCheck, Lightning, Sparkle
 } from "@phosphor-icons/react";
 import { useRole } from "@/context/RoleContext";
 
@@ -23,6 +24,34 @@ interface User {
     };
 }
 
+interface UserStats {
+    total: number;
+    newToday: number;
+    new7d: number;
+    new30d: number;
+    active30d: number;
+    neverActive: number;
+    admins: number;
+}
+
+function formatRelativeTime(dateString: string): string {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    if (diffMs < 0) return "Vừa xong";
+    const diffMinutes = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffMinutes < 1) return "Vừa xong";
+    if (diffMinutes < 60) return `${diffMinutes} phút trước`;
+    if (diffHours < 24) return `${diffHours} giờ trước`;
+    if (diffDays === 1) return "Hôm qua";
+    if (diffDays < 7) return `${diffDays} ngày trước`;
+    if (diffDays < 30) return `${Math.floor(diffDays / 7)} tuần trước`;
+    return `${Math.floor(diffDays / 30)} tháng trước`;
+}
+
 export default function UsersPage() {
     const { isModerator } = useRole();
     const [users, setUsers] = useState<User[]>([]);
@@ -34,6 +63,16 @@ export default function UsersPage() {
     const [totalPages, setTotalPages] = useState(1);
     const [totalUsers, setTotalUsers] = useState(0);
     const limit = 7;
+
+    const [stats, setStats] = useState<UserStats>({
+        total: 0,
+        newToday: 0,
+        new7d: 0,
+        new30d: 0,
+        active30d: 0,
+        neverActive: 0,
+        admins: 0,
+    });
 
     // Filter & Search
     const [searchTerm, setSearchTerm] = useState("");
@@ -72,6 +111,9 @@ export default function UsersPage() {
 
             setUsers(fetchedUsers);
             setTotalUsers(total);
+            if (data.stats) {
+                setStats(data.stats);
+            }
             setTotalPages(calculatedTotalPages);
             setCurrentPage(page);
         } catch (err: any) {
@@ -215,6 +257,131 @@ export default function UsersPage() {
                 )}
             </div>
 
+            {/* Quick Stats Overview */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Total Users */}
+                <motion.button
+                    type="button"
+                    whileHover={{ y: -2 }}
+                    whileTap={{ scale: 0.99 }}
+                    onClick={() => setFilterOption("all")}
+                    className={`relative text-left overflow-hidden rounded-2xl border p-5 shadow-sm transition-all duration-200 cursor-pointer ${
+                        filterOption === "all"
+                            ? "bg-orange-500/5 border-orange-500/40 shadow-orange-500/10 ring-1 ring-orange-500/30 dark:bg-orange-500/[0.08]"
+                            : "bg-white dark:bg-zinc-900/50 border-zinc-200 dark:border-white/5 hover:border-zinc-300 dark:hover:border-white/10"
+                    }`}
+                >
+                    <div className="flex items-center justify-between mb-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-500">
+                            <UsersThree weight="fill" className="h-5 w-5" />
+                        </div>
+                        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
+                            Tất cả
+                        </span>
+                    </div>
+                    <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Tổng người dùng</p>
+                    <div className="mt-1 flex items-baseline gap-2">
+                        <span className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-white">
+                            {isLoading && stats.total === 0 ? "..." : stats.total.toLocaleString()}
+                        </span>
+                        <span className="text-xs text-zinc-400">tài khoản</span>
+                    </div>
+                </motion.button>
+
+                {/* New in 7 Days */}
+                <motion.button
+                    type="button"
+                    whileHover={{ y: -2 }}
+                    whileTap={{ scale: 0.99 }}
+                    onClick={() => setFilterOption("new_7")}
+                    className={`relative text-left overflow-hidden rounded-2xl border p-5 shadow-sm transition-all duration-200 cursor-pointer ${
+                        filterOption === "new_7"
+                            ? "bg-emerald-500/5 border-emerald-500/40 shadow-emerald-500/10 ring-1 ring-emerald-500/30 dark:bg-emerald-500/[0.08]"
+                            : "bg-white dark:bg-zinc-900/50 border-zinc-200 dark:border-white/5 hover:border-zinc-300 dark:hover:border-white/10"
+                    }`}
+                >
+                    <div className="flex items-center justify-between mb-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500">
+                            <UserPlus weight="fill" className="h-5 w-5" />
+                        </div>
+                        {stats.newToday > 0 ? (
+                            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                                +{stats.newToday} hôm nay
+                            </span>
+                        ) : (
+                            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
+                                7 ngày qua
+                            </span>
+                        )}
+                    </div>
+                    <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">User mới gần đây</p>
+                    <div className="mt-1 flex items-baseline gap-2">
+                        <span className="text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400">
+                            {isLoading && stats.new7d === 0 ? "..." : stats.new7d.toLocaleString()}
+                        </span>
+                        <span className="text-xs text-zinc-400">trong 7 ngày</span>
+                    </div>
+                </motion.button>
+
+                {/* New in 30 Days */}
+                <motion.button
+                    type="button"
+                    whileHover={{ y: -2 }}
+                    whileTap={{ scale: 0.99 }}
+                    onClick={() => setFilterOption("new_30")}
+                    className={`relative text-left overflow-hidden rounded-2xl border p-5 shadow-sm transition-all duration-200 cursor-pointer ${
+                        filterOption === "new_30"
+                            ? "bg-sky-500/5 border-sky-500/40 shadow-sky-500/10 ring-1 ring-sky-500/30 dark:bg-sky-500/[0.08]"
+                            : "bg-white dark:bg-zinc-900/50 border-zinc-200 dark:border-white/5 hover:border-zinc-300 dark:hover:border-white/10"
+                    }`}
+                >
+                    <div className="flex items-center justify-between mb-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-500/10 border border-sky-500/20 text-sky-500">
+                            <CalendarCheck weight="fill" className="h-5 w-5" />
+                        </div>
+                        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
+                            30 ngày qua
+                        </span>
+                    </div>
+                    <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">User mới trong tháng</p>
+                    <div className="mt-1 flex items-baseline gap-2">
+                        <span className="text-2xl font-bold tracking-tight text-sky-600 dark:text-sky-400">
+                            {isLoading && stats.new30d === 0 ? "..." : stats.new30d.toLocaleString()}
+                        </span>
+                        <span className="text-xs text-zinc-400">trong 30 ngày</span>
+                    </div>
+                </motion.button>
+
+                {/* Active in 30 Days */}
+                <motion.button
+                    type="button"
+                    whileHover={{ y: -2 }}
+                    whileTap={{ scale: 0.99 }}
+                    onClick={() => setFilterOption("active_30")}
+                    className={`relative text-left overflow-hidden rounded-2xl border p-5 shadow-sm transition-all duration-200 cursor-pointer ${
+                        filterOption === "active_30"
+                            ? "bg-purple-500/5 border-purple-500/40 shadow-purple-500/10 ring-1 ring-purple-500/30 dark:bg-purple-500/[0.08]"
+                            : "bg-white dark:bg-zinc-900/50 border-zinc-200 dark:border-white/5 hover:border-zinc-300 dark:hover:border-white/10"
+                    }`}
+                >
+                    <div className="flex items-center justify-between mb-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-500">
+                            <Lightning weight="fill" className="h-5 w-5" />
+                        </div>
+                        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
+                            Hoạt động
+                        </span>
+                    </div>
+                    <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Đang hoạt động</p>
+                    <div className="mt-1 flex items-baseline gap-2">
+                        <span className="text-2xl font-bold tracking-tight text-purple-600 dark:text-purple-400">
+                            {isLoading && stats.active30d === 0 ? "..." : stats.active30d.toLocaleString()}
+                        </span>
+                        <span className="text-xs text-zinc-400">trong 30 ngày</span>
+                    </div>
+                </motion.button>
+            </div>
+
             {/* Filter and Search Bar */}
             <div className="flex flex-col md:flex-row items-center gap-4 bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/5 rounded-2xl p-4 shadow-sm backdrop-blur-xl transition-colors duration-300">
                 <div className="relative w-full md:w-auto flex-1 max-w-md group">
@@ -239,16 +406,17 @@ export default function UsersPage() {
                         onChange={(e) => setFilterOption(e.target.value)}
                         className="appearance-none w-full bg-zinc-50 dark:bg-zinc-950/50 border border-zinc-200 dark:border-white/10 rounded-xl py-2 pl-10 pr-10 text-zinc-900 dark:text-white focus:outline-none focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/50 transition-all text-sm cursor-pointer"
                     >
-                        <option value="all">All Users</option>
+                        <option value="all">Tất cả người dùng (All Users)</option>
                         {isModerator && (
                             <>
                                 <option value="role_admin">Admins Only</option>
                                 <option value="role_user">Users Only</option>
                             </>
                         )}
-                        <option value="active_30">Active recently (30d)</option>
-                        <option value="new_30">New Accounts (30d)</option>
-                        <option value="never_signed_in">Never active</option>
+                        <option value="new_7">User mới gần đây (7 ngày)</option>
+                        <option value="new_30">User mới trong tháng (30 ngày)</option>
+                        <option value="active_30">Đang hoạt động gần đây (30 ngày)</option>
+                        <option value="never_signed_in">Chưa từng đăng nhập</option>
                     </select>
                     <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-zinc-500">
                         <svg className="w-4 h-4 fill-current" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" fillRule="evenodd"></path></svg>
@@ -283,30 +451,68 @@ export default function UsersPage() {
                                     </td>
                                 </tr>
                             ) : (
-                                users.map((user) => (
-                                    <tr key={user.id} className="hover:bg-zinc-50 dark:hover:bg-white/[0.02] transition-colors">
-                                        <td className="px-6 py-4 font-mono text-xs">{user.id.slice(0, 8)}...</td>
-                                        <td className="px-6 py-4">
-                                            <a href={`/users/${user.id}`} className="text-zinc-900 dark:text-zinc-200 font-medium hover:text-orange-500 dark:hover:text-orange-400 transition-colors">
-                                                {user.email}
-                                            </a>
-                                        </td>
-                                        {isModerator && (
+                                users.map((user) => {
+                                    const createdAtTime = new Date(user.created_at).getTime();
+                                    const isNew7d = Date.now() - createdAtTime < 7 * 24 * 60 * 60 * 1000;
+                                    const isNew24h = Date.now() - createdAtTime < 24 * 60 * 60 * 1000;
+
+                                    return (
+                                        <tr key={user.id} className="hover:bg-zinc-50 dark:hover:bg-white/[0.02] transition-colors">
+                                            <td className="px-6 py-4 font-mono text-xs text-zinc-500 dark:text-zinc-400">{user.id.slice(0, 8)}...</td>
                                             <td className="px-6 py-4">
-                                                {user.app_metadata?.role === 'admin' ? (
-                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-orange-500/10 text-orange-500 border border-orange-500/20">
-                                                        <ShieldStar weight="fill" className="w-3 h-3" />
-                                                        Admin
-                                                    </span>
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <a href={`/users/${user.id}`} className="text-zinc-900 dark:text-zinc-200 font-medium hover:text-orange-500 dark:hover:text-orange-400 transition-colors">
+                                                        {user.email}
+                                                    </a>
+                                                    {isNew24h ? (
+                                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-orange-500/15 text-orange-500 border border-orange-500/30">
+                                                            <Sparkle weight="fill" className="w-2.5 h-2.5" />
+                                                            Hôm nay
+                                                        </span>
+                                                    ) : isNew7d ? (
+                                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 border border-emerald-500/20">
+                                                            <Sparkle weight="fill" className="w-2.5 h-2.5" />
+                                                            Mới
+                                                        </span>
+                                                    ) : null}
+                                                </div>
+                                            </td>
+                                            {isModerator && (
+                                                <td className="px-6 py-4">
+                                                    {user.app_metadata?.role === 'admin' ? (
+                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-orange-500/10 text-orange-500 border border-orange-500/20">
+                                                            <ShieldStar weight="fill" className="w-3 h-3" />
+                                                            Admin
+                                                        </span>
+                                                    ) : (
+                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-zinc-500/10 text-zinc-500 dark:text-zinc-400 border border-zinc-500/20 dark:border-zinc-600/30">
+                                                            User
+                                                        </span>
+                                                    )}
+                                                </td>
+                                            )}
+                                            <td className="px-6 py-4">
+                                                <div className="text-xs font-medium text-zinc-900 dark:text-zinc-200">
+                                                    {new Date(user.created_at).toLocaleDateString()}
+                                                </div>
+                                                <div className="text-[11px] text-zinc-400 dark:text-zinc-500">
+                                                    {formatRelativeTime(user.created_at)}
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                {user.last_sign_in_at ? (
+                                                    <div>
+                                                        <div className="text-xs font-medium text-zinc-900 dark:text-zinc-200">
+                                                            {new Date(user.last_sign_in_at).toLocaleDateString()}
+                                                        </div>
+                                                        <div className="text-[11px] text-zinc-400 dark:text-zinc-500">
+                                                            {formatRelativeTime(user.last_sign_in_at)}
+                                                        </div>
+                                                    </div>
                                                 ) : (
-                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-zinc-500/10 text-zinc-500 dark:text-zinc-400 border border-zinc-500/20 dark:border-zinc-600/30">
-                                                        User
-                                                    </span>
+                                                    <span className="text-xs text-zinc-400 dark:text-zinc-600 italic">Chưa đăng nhập</span>
                                                 )}
                                             </td>
-                                        )}
-                                        <td className="px-6 py-4">{new Date(user.created_at).toLocaleDateString()}</td>
-                                        <td className="px-6 py-4">{user.last_sign_in_at ? new Date(user.last_sign_in_at).toLocaleDateString() : 'Never'}</td>
                                         <td className="px-6 py-4 text-right flex items-center justify-end gap-1">
                                             <button
                                                 onClick={() => window.location.href = `/users/${user.id}`}
@@ -351,8 +557,9 @@ export default function UsersPage() {
                                                 </button>
                                             )}
                                         </td>
-                                    </tr>
-                                ))
+                                        </tr>
+                                    );
+                                })
                             )}
                         </tbody>
                     </table>
