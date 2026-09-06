@@ -42,11 +42,24 @@ type Stats = {
     totalVolume: number;
 };
 
-/** Public tracking pages, for the carriers the platform has no integration with. */
+/**
+ * Public tracking pages, for the carriers the platform has no integration with.
+ *
+ * Keep in step with `SHIPPING_CARRIERS` in the storefront
+ * (`card-verse/src/lib/shipping-carriers.ts`), which carries the same table and
+ * the reasoning behind each shape. Two of these are not the obvious form:
+ *
+ * • SPX reads the WHOLE query string as the tracking number rather than a named
+ *   parameter, so `?TrackingID={code}` made it search for the literal text
+ *   "TrackingID=SPXVN…" and report no match. The code goes bare after the `?`.
+ * • Viettel Post renders its lookup in a reCAPTCHA iframe that receives no query
+ *   at all, so no parameter can prefill it. The link is a destination only; the
+ *   moderator pastes the number, which is why it stays on screen next to it.
+ */
 const CARRIER_TRACKING: Record<string, { name: string; url: string }> = {
     ghn: { name: 'GHN', url: 'https://donhang.ghn.vn/?order_code={code}' },
-    vtp: { name: 'Viettel Post', url: 'https://viettelpost.com.vn/tra-cuu-hanh-trinh-don/?peopleTracking={code}' },
-    shopee: { name: 'SPX', url: 'https://spx.vn/track?TrackingID={code}' },
+    vtp: { name: 'Viettel Post', url: 'https://viettelpost.com.vn/tra-cuu-hanh-trinh-don/' },
+    shopee: { name: 'SPX', url: 'https://spx.vn/track?{code}' },
     self: { name: 'Tự giao', url: '' },
 };
 
