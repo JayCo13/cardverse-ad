@@ -84,11 +84,6 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'No recipients found to send email to.' }, { status: 400 });
         }
 
-        // Validate SMTP credentials
-        if (!process.env.SMTP_USER || !process.env.SMTP_PASSWORD) {
-            return NextResponse.json({ error: 'SMTP credentials are not configured. Set SMTP_USER and SMTP_PASSWORD in your environment.' }, { status: 500 });
-        }
-
         const transporter = createMailTransporter();
         const fromAddress = getFromAddress();
 
@@ -108,7 +103,7 @@ export async function POST(request: Request) {
                     <!-- Header -->
                     <tr>
                         <td style="padding: 32px 40px; background: linear-gradient(135deg, rgba(249,115,22,0.15), transparent); border-bottom: 1px solid rgba(255,255,255,0.05);">
-                            <h1 style="margin: 0; color: #f97316; font-size: 24px; font-weight: 700; letter-spacing: -0.5px;">CardVerseHub</h1>
+                            <img src="https://cardversehub.com/assets/logo-verse.png" alt="CardVerseHub" height="40" style="display: block; height: 40px; width: auto; border: 0;">
                         </td>
                     </tr>
                     <!-- Subject -->
