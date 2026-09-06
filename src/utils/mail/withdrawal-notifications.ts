@@ -27,7 +27,7 @@ export async function sendWithdrawalRejected(input: {
     await transporter.sendMail({
       from,
       to: input.email,
-      subject: 'Thông báo từ chối yêu cầu rút tiền — CardVerseHub',
+      subject: 'Thông báo từ chối yêu cầu rút tiền | CardVerseHub',
       html: buildTemplate(
         'Yêu cầu rút tiền đã bị từ chối',
         `<p>Xin chào <strong style="color:#f97316;">${name}</strong>,</p>

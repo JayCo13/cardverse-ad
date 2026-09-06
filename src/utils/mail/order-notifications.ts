@@ -30,7 +30,7 @@ export async function sendOrderRefundEmails(info: RefundInfo) {
             tasks.push(transporter.sendMail({
                 from,
                 to: buyerEmail,
-                subject: `💸 Đã hoàn tiền đơn #${shortId} — CardVerseHub`,
+                subject: `💸 Đã hoàn tiền đơn #${shortId} | CardVerseHub`,
                 html: buildTemplate(
                     'Đơn hàng đã được hoàn tiền',
                     `<p style="margin: 0 0 16px;">Sau khi kiểm tra khiếu nại, quản trị viên đã <strong style="color: #22c55e;">hoàn tiền</strong> cho đơn hàng của bạn.</p>
@@ -51,7 +51,7 @@ export async function sendOrderRefundEmails(info: RefundInfo) {
             tasks.push(transporter.sendMail({
                 from,
                 to: sellerEmail,
-                subject: `⚠️ Đơn #${shortId} đã huỷ & hoàn tiền — CardVerseHub`,
+                subject: `⚠️ Đơn #${shortId} đã huỷ & hoàn tiền | CardVerseHub`,
                 html: buildTemplate(
                     'Đơn hàng đã bị huỷ và hoàn tiền',
                     `<p style="margin: 0 0 16px;">Sau khi kiểm tra khiếu nại về đơn hàng, quản trị viên đã quyết định <strong style="color: #f97316;">hoàn tiền cho người mua</strong>.</p>

@@ -53,7 +53,7 @@ export function buildTemplate(title: string, body: string) {
                     <!-- Footer -->
                     <tr>
                         <td style="padding: 28px 40px; background-color: rgba(0,0,0,0.35); border-top: 1px solid rgba(255,255,255,0.06);">
-                            <p style="margin: 0 0 6px; color: #71717a; font-size: 13px; text-align: center; font-weight: 600;">CardVerseHub — Sàn giao dịch thẻ bài</p>
+                            <p style="margin: 0 0 6px; color: #71717a; font-size: 13px; text-align: center; font-weight: 600;">CardVerseHub | Sàn giao dịch thẻ bài</p>
                             <p style="margin: 0; color: #52525b; font-size: 12px; text-align: center; line-height: 1.6;">
                                 <a href="${appUrl}" style="color: #f97316; text-decoration: none;">${appUrl.replace(/^https?:\/\//, '')}</a>
                                 &nbsp;&middot;&nbsp; &copy; ${year} CardVerseHub. All rights reserved.
@@ -84,7 +84,7 @@ export async function sendKYCApproved(userEmail: string, fullName: string) {
         await transporter.sendMail({
             from,
             to: userEmail,
-            subject: '✅ Hồ sơ KYC đã được duyệt — CardVerseHub',
+            subject: '✅ Hồ sơ KYC đã được duyệt | CardVerseHub',
             html: buildTemplate(
                 '🎉 Chúc mừng, bạn đã trở thành Người bán!',
                 `<p style="margin: 0 0 16px; color: #e4e4e7;">Xin chào <strong style="color: #f97316;">${fullName}</strong>,</p>
@@ -98,7 +98,7 @@ export async function sendKYCApproved(userEmail: string, fullName: string) {
                                 <tr>
                                     <td style="font-size: 26px; width: 40px; vertical-align: middle;">✅</td>
                                     <td style="vertical-align: middle;">
-                                        <p style="margin: 0; color: #4ade80; font-size: 15px; font-weight: 700;">Đã xác minh — Verified Seller</p>
+                                        <p style="margin: 0; color: #4ade80; font-size: 15px; font-weight: 700;">Đã xác minh · Verified Seller</p>
                                         <p style="margin: 4px 0 0; color: #a1a1aa; font-size: 13px;">Bạn đã có thể đăng bán, đấu giá và razz thẻ.</p>
                                     </td>
                                 </tr>
@@ -141,7 +141,7 @@ export async function sendKYCRejected(userEmail: string, fullName: string, reaso
         await transporter.sendMail({
             from,
             to: userEmail,
-            subject: '❌ Hồ sơ KYC chưa được duyệt — CardVerseHub',
+            subject: '❌ Hồ sơ KYC chưa được duyệt | CardVerseHub',
             html: buildTemplate(
                 '❌ Hồ sơ chưa được duyệt',
                 `<p style="color: #e4e4e7;">Xin chào <strong style="color: #f97316;">${fullName}</strong>,</p>

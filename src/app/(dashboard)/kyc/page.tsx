@@ -209,7 +209,7 @@ export default function KYCPage() {
                                 <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
                                     <div>
                                         <p className="text-xs text-zinc-500">Số tài khoản đã dùng</p>
-                                        <p className="font-mono text-zinc-900 dark:text-zinc-100">{b.bank_account_number || '—'}</p>
+                                        <p className="font-mono text-zinc-900 dark:text-zinc-100">{b.bank_account_number || '-'}</p>
                                     </div>
                                     <div>
                                         <p className="text-xs text-zinc-500">Thời điểm</p>
@@ -362,7 +362,7 @@ export default function KYCPage() {
                                                         </span>
                                                     ) : v.bank_account_name_verified ? (
                                                         <span className="text-sm font-semibold text-rose-600 dark:text-rose-400 text-right">
-                                                            Lệch — ngân hàng trả về “{v.bank_account_name_verified}”
+                                                            Lệch, ngân hàng trả về “{v.bank_account_name_verified}”
                                                         </span>
                                                     ) : (
                                                         <span className="text-sm font-semibold flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
@@ -405,13 +405,13 @@ export default function KYCPage() {
                                                 <div className="space-y-1">
                                                     <p className="text-xs text-zinc-500 uppercase tracking-wider">Liveness</p>
                                                     <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                                                        {v.kyc_session.liveness_score ?? '—'}
+                                                        {v.kyc_session.liveness_score ?? '-'}
                                                     </p>
                                                 </div>
                                                 <div className="space-y-1">
                                                     <p className="text-xs text-zinc-500 uppercase tracking-wider">Face Match</p>
                                                     <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                                                        {v.kyc_session.face_match_score ?? '—'}
+                                                        {v.kyc_session.face_match_score ?? '-'}
                                                     </p>
                                                 </div>
                                                 <div className="space-y-1">
@@ -435,7 +435,7 @@ export default function KYCPage() {
 
                                                 <div className="col-span-1 sm:col-span-3 pt-2 border-t border-zinc-200 dark:border-zinc-800">
                                                     <p className="text-xs text-zinc-500">
-                                                        Session <span className="font-mono">{v.kyc_session.provider_session_id}</span> — mở trên dashboard nhà cung cấp để xem ảnh giấy tờ.
+                                                        Session <span className="font-mono">{v.kyc_session.provider_session_id}</span>. Mở trên dashboard nhà cung cấp để xem ảnh giấy tờ.
                                                     </p>
                                                 </div>
                                             </div>
@@ -463,11 +463,11 @@ export default function KYCPage() {
                                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/20">
                                                 <div className="space-y-1">
                                                     <p className="text-xs text-zinc-500 uppercase tracking-wider">ID Card Extraction</p>
-                                                    <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{v.ai_cccd_name || '—'}</p>
+                                                    <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{v.ai_cccd_name || '-'}</p>
                                                 </div>
                                                 <div className="space-y-1">
                                                     <p className="text-xs text-zinc-500 uppercase tracking-wider">Bank App Extraction</p>
-                                                    <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{v.ai_bank_name || '—'} • {v.ai_bank_number || '—'}</p>
+                                                    <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{v.ai_bank_name || '-'} • {v.ai_bank_number || '-'}</p>
                                                 </div>
                                                 <div className="col-span-1 sm:col-span-2 pt-2 mt-2 border-t border-zinc-200 dark:border-zinc-800">
                                                     <div className="flex items-center justify-between">

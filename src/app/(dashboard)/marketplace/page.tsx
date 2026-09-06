@@ -88,7 +88,7 @@ const VERDICT_LABELS: Record<string, { label: string; hint: string; color: strin
     },
     contested: {
         label: 'Cả hai đều có video',
-        hint: 'Xem cả hai video rồi tự quyết — quy tắc không nghiêng về bên nào.',
+        hint: 'Xem cả hai video rồi tự quyết, quy tắc không nghiêng về bên nào.',
         color: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300',
     },
     seller_missing_evidence: {
@@ -250,13 +250,13 @@ export default function MarketplacePage() {
                                                 {order.card?.image_url && (
                                                     <img src={order.card.image_url} alt="" className="w-8 h-10 rounded object-cover" />
                                                 )}
-                                                <span className="line-clamp-1 max-w-[120px]">{order.card?.name || '—'}</span>
+                                                <span className="line-clamp-1 max-w-[120px]">{order.card?.name || '-'}</span>
                                             </div>
                                         </td>
                                         <td className="px-4 py-3 text-xs">
-                                            <span>{order.buyer?.display_name || order.buyer?.email || '—'}</span>
+                                            <span>{order.buyer?.display_name || order.buyer?.email || '-'}</span>
                                             <ArrowRight className="inline h-3 w-3 mx-1 text-zinc-400" />
-                                            <span>{order.seller?.display_name || order.seller?.email || '—'}</span>
+                                            <span>{order.seller?.display_name || order.seller?.email || '-'}</span>
                                         </td>
                                         <td className="px-4 py-3 font-semibold">{formatVND(order.amount)}</td>
                                         <td className="px-4 py-3 text-orange-500">{formatVND(order.platform_fee)}</td>

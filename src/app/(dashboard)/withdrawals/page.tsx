@@ -112,7 +112,7 @@ export default function WithdrawalsPage() {
               ) : withdrawals.map((withdrawal) => (
                 <tr key={withdrawal.id} className="hover:bg-zinc-50 dark:hover:bg-white/[0.02]">
                   <td className="px-5 py-4">
-                    <div className="font-medium text-zinc-900 dark:text-white">{withdrawal.user?.display_name || '—'}</div>
+                    <div className="font-medium text-zinc-900 dark:text-white">{withdrawal.user?.display_name || '-'}</div>
                     <div className="text-xs text-zinc-500">{withdrawal.user?.email || withdrawal.user_id}</div>
                   </td>
                   <td className="px-5 py-4">

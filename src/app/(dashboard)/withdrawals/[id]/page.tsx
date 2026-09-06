@@ -259,9 +259,9 @@ export default function WithdrawalDetailPage({ params }: { params: Promise<{ id:
     new Intl.NumberFormat(locale, { style: 'currency', currency: 'VND' }).format(amount);
 
   const dateTime = (value: unknown) => {
-    if (typeof value !== 'string' || !value) return '—';
+    if (typeof value !== 'string' || !value) return '-';
     const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? '—' : new Intl.DateTimeFormat(locale, {
+    return Number.isNaN(date.getTime()) ? '-' : new Intl.DateTimeFormat(locale, {
       dateStyle: 'medium',
       timeStyle: 'short',
     }).format(date);
@@ -275,7 +275,7 @@ export default function WithdrawalDetailPage({ params }: { params: Promise<{ id:
   const statusLabel = (value: unknown) => {
     const status = typeof value === 'string' ? value : '';
     const translationKey = statusTranslationKeys[status];
-    return translationKey ? t(translationKey) : status.replaceAll('_', ' ') || '—';
+    return translationKey ? t(translationKey) : status.replaceAll('_', ' ') || '-';
   };
 
   const statusBadge = (value: unknown) => {
@@ -322,10 +322,10 @@ export default function WithdrawalDetailPage({ params }: { params: Promise<{ id:
           <h2 className="font-semibold">{t('kyc_snapshot')}</h2>
           <dl className="mt-4 space-y-3 text-sm">
             <div className="flex items-center justify-between gap-4"><dt className="text-zinc-500">{t('kyc_status')}</dt><dd>{statusBadge(statement.kyc.status)}</dd></div>
-            <div className="flex justify-between gap-4"><dt className="text-zinc-500">{t('full_name')}</dt><dd className="text-right">{stringValue(statement.kyc, 'full_name') || '—'}</dd></div>
-            <div className="flex justify-between gap-4"><dt className="text-zinc-500">{t('bank')}</dt><dd className="text-right">{stringValue(statement.kyc, 'bank_name') || '—'}</dd></div>
-            <div className="flex justify-between gap-4"><dt className="text-zinc-500">{t('account')}</dt><dd className="font-mono text-right">{stringValue(statement.kyc, 'bank_account_masked') || '—'}</dd></div>
-            <div className="flex justify-between gap-4"><dt className="text-zinc-500">{t('verified_holder')}</dt><dd className="text-right">{stringValue(statement.kyc, 'bank_account_name_verified') || '—'}</dd></div>
+            <div className="flex justify-between gap-4"><dt className="text-zinc-500">{t('full_name')}</dt><dd className="text-right">{stringValue(statement.kyc, 'full_name') || '-'}</dd></div>
+            <div className="flex justify-between gap-4"><dt className="text-zinc-500">{t('bank')}</dt><dd className="text-right">{stringValue(statement.kyc, 'bank_name') || '-'}</dd></div>
+            <div className="flex justify-between gap-4"><dt className="text-zinc-500">{t('account')}</dt><dd className="font-mono text-right">{stringValue(statement.kyc, 'bank_account_masked') || '-'}</dd></div>
+            <div className="flex justify-between gap-4"><dt className="text-zinc-500">{t('verified_holder')}</dt><dd className="text-right">{stringValue(statement.kyc, 'bank_account_name_verified') || '-'}</dd></div>
             <div className="flex justify-between gap-4"><dt className="text-zinc-500">{t('bank_verified_at')}</dt><dd className="text-right">{dateTime(statement.kyc.bank_verified_at)}</dd></div>
           </dl>
         </section>
@@ -373,7 +373,7 @@ export default function WithdrawalDetailPage({ params }: { params: Promise<{ id:
         <section className="rounded-xl border border-zinc-200 p-5 dark:border-zinc-800">
           <h2 className="font-semibold">{t('request_destination')}</h2>
           <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
-            <dt className="text-zinc-500">{t('seller')}</dt><dd>{statement.user.display_name || statement.user.email || '—'}</dd>
+            <dt className="text-zinc-500">{t('seller')}</dt><dd>{statement.user.display_name || statement.user.email || '-'}</dd>
             <dt className="text-zinc-500">{t('requested')}</dt><dd>{money(withdrawal.amount_requested)}</dd>
             <dt className="text-zinc-500">{t('fee')}</dt><dd>{money(withdrawal.fee)}</dd>
             <dt className="text-zinc-500">{t('net')}</dt><dd>{money(withdrawal.amount_net)}</dd>
@@ -477,7 +477,7 @@ export default function WithdrawalDetailPage({ params }: { params: Promise<{ id:
             </thead>
             <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
               {statement.sources.map((source) => <tr key={stringValue(source, 'id')}>
-                <td className="px-3 py-3"><div className="font-medium">{statusLabel(source.source_type)}</div><div className="mt-1 max-w-48 truncate font-mono text-xs text-zinc-500" title={stringValue(source, 'source_id')}>{stringValue(source, 'source_id') || '—'}</div></td>
+                <td className="px-3 py-3"><div className="font-medium">{statusLabel(source.source_type)}</div><div className="mt-1 max-w-48 truncate font-mono text-xs text-zinc-500" title={stringValue(source, 'source_id')}>{stringValue(source, 'source_id') || '-'}</div></td>
                 <td className="px-3 py-3">{money(numberValue(source, 'original_amount'))}</td>
                 <td className="px-3 py-3 font-medium">{money(numberValue(source, 'remaining_amount'))}</td>
                 <td className="px-3 py-3">{statusBadge(source.verification_status)}</td>
@@ -513,7 +513,7 @@ export default function WithdrawalDetailPage({ params }: { params: Promise<{ id:
         <div className="flex items-center justify-between gap-4"><h2 className="font-semibold">{t('transaction_timeline')}</h2><span className="text-xs text-zinc-500">{t('records_count', { count: statement.transactions.length })}</span></div>
         <div className="mt-4 max-h-[34rem] space-y-3 overflow-y-auto pr-1">
           {statement.transactions.map((transaction) => <article key={stringValue(transaction, 'id')} className="flex flex-col gap-3 rounded-xl bg-zinc-100 p-4 sm:flex-row sm:items-center sm:justify-between dark:bg-zinc-900">
-            <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className="font-medium">{statusLabel(transaction.type)}</span><span className="text-xs text-zinc-500">{dateTime(transaction.created_at)}</span></div><p className="mt-1 text-sm text-zinc-500">{stringValue(transaction, 'description') || '—'}</p><p className="mt-1 truncate font-mono text-xs text-zinc-500">{stringValue(transaction, 'reference_id')}</p></div>
+            <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className="font-medium">{statusLabel(transaction.type)}</span><span className="text-xs text-zinc-500">{dateTime(transaction.created_at)}</span></div><p className="mt-1 text-sm text-zinc-500">{stringValue(transaction, 'description') || '-'}</p><p className="mt-1 truncate font-mono text-xs text-zinc-500">{stringValue(transaction, 'reference_id')}</p></div>
             <div className="shrink-0 text-right"><div className="font-semibold">{money(numberValue(transaction, 'amount'))}</div><div className="text-xs text-zinc-500">{t('balance_after')}: {money(numberValue(transaction, 'balance_after'))}</div></div>
           </article>)}
           {statement.transactions.length === 0 && <div className="py-8 text-center text-sm text-zinc-500">{t('no_data')}</div>}
@@ -526,7 +526,7 @@ export default function WithdrawalDetailPage({ params }: { params: Promise<{ id:
           {statement.transfer_attempts.map((attempt, index) => <article key={stringValue(attempt, 'id')} className="rounded-xl bg-zinc-100 p-4 dark:bg-zinc-900">
             <div className="flex items-center justify-between gap-4"><h3 className="font-medium">{t('transfer_attempt_number', { number: statement.transfer_attempts.length - index })}</h3>{statusBadge(attempt.status)}</div>
             <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
-              <dt className="text-zinc-500">{t('requested')}</dt><dd className="text-right">{money(numberValue(attempt, 'amount_requested'))}</dd><dt className="text-zinc-500">{t('fee')}</dt><dd className="text-right">{money(numberValue(attempt, 'fee_amount'))}</dd><dt className="text-zinc-500">{t('net')}</dt><dd className="text-right font-semibold">{money(numberValue(attempt, 'amount_net'))}</dd><dt className="text-zinc-500">{t('destination_masked')}</dt><dd className="text-right">{stringValue(attempt, 'destination_bank_name')} · {stringValue(attempt, 'destination_account_masked')}</dd><dt className="text-zinc-500">{t('started_at')}</dt><dd className="text-right">{dateTime(attempt.started_at)}</dd><dt className="text-zinc-500">{t('completed_at')}</dt><dd className="text-right">{dateTime(attempt.completed_at)}</dd><dt className="text-zinc-500">{t('transfer_reference')}</dt><dd className="break-all text-right font-mono">{stringValue(attempt, 'transfer_reference') || '—'}</dd>
+              <dt className="text-zinc-500">{t('requested')}</dt><dd className="text-right">{money(numberValue(attempt, 'amount_requested'))}</dd><dt className="text-zinc-500">{t('fee')}</dt><dd className="text-right">{money(numberValue(attempt, 'fee_amount'))}</dd><dt className="text-zinc-500">{t('net')}</dt><dd className="text-right font-semibold">{money(numberValue(attempt, 'amount_net'))}</dd><dt className="text-zinc-500">{t('destination_masked')}</dt><dd className="text-right">{stringValue(attempt, 'destination_bank_name')} · {stringValue(attempt, 'destination_account_masked')}</dd><dt className="text-zinc-500">{t('started_at')}</dt><dd className="text-right">{dateTime(attempt.started_at)}</dd><dt className="text-zinc-500">{t('completed_at')}</dt><dd className="text-right">{dateTime(attempt.completed_at)}</dd><dt className="text-zinc-500">{t('transfer_reference')}</dt><dd className="break-all text-right font-mono">{stringValue(attempt, 'transfer_reference') || '-'}</dd>
             </dl>
             {attempt.failure_reason ? <div className="mt-3 rounded-lg bg-red-500/10 p-3 text-sm text-red-500">{String(attempt.failure_reason)}</div> : null}
           </article>)}
