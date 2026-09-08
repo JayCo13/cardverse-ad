@@ -16,8 +16,8 @@ export async function GET(request: Request) {
     }
 
     const searchParams = new URL(request.url).searchParams;
-    const page = parseInt(searchParams.get('page') || '1', 10);
-    const perPage = parseInt(searchParams.get('limit') || '10', 10);
+    const page = Math.max(1, Number(searchParams.get('page')) || 1);
+    const perPage = Math.min(100, Math.max(1, Number(searchParams.get('limit')) || 10));
     const searchParam = searchParams.get('search') || '';
     const filterParam = searchParams.get('filter') || 'all';
 
@@ -25,15 +25,21 @@ export async function GET(request: Request) {
         const supabaseAdmin = createAdminClient();
         const isAdminViewer = role === 'admin';
 
-        // Fetch user list (up to 1000) for global stats, filtering, and accurate pagination
-        const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-        if (error) {
-            console.error('[/api/users GET] Supabase error:', error.message);
-            throw error;
+        const rawUsers: import('@supabase/supabase-js').User[] = [];
+        for (let authPage = 1; ; authPage++) {
+            const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page: authPage, perPage: 1000 });
+            if (error) throw error;
+            rawUsers.push(...data.users);
+            if (data.users.length < 1000) break;
         }
-
-        const rawUsers = data?.users || [];
-
+        const restrictions = new Map<string, { is_banned: boolean; version: number; reason: string | null }>();
+        // Supabase caps results per request. Page state rows too.
+        for (let offset = 0; ; offset += 1000) {
+            const { data, error } = await supabaseAdmin.from('account_restrictions').select('*').order('user_id').range(offset, offset + 999);
+            if (error) throw error;
+            for (const row of data || []) restrictions.set(row.user_id, row);
+            if (!data || data.length < 1000) break;
+        }
         // Calculate global statistics across users (before search/filter)
         const now = new Date();
         const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
@@ -68,7 +74,11 @@ export async function GET(request: Request) {
         }
 
         // Apply selected dropdown / card filter
-        if (filterParam === 'new_today') {
+        if (filterParam === 'banned') {
+            filtered = filtered.filter(u => restrictions.get(u.id)?.is_banned);
+        } else if (filterParam === 'legacy_ban') {
+            filtered = filtered.filter(u => u.user_metadata?.banned || (u.banned_until && new Date(u.banned_until).getTime() > Date.now()));
+        } else if (filterParam === 'new_today') {
             filtered = filtered.filter(u => new Date(u.created_at).getTime() >= startOfToday);
         } else if (filterParam === 'new_7') {
             filtered = filtered.filter(u => new Date(u.created_at).getTime() >= sevenDaysAgo);
@@ -91,8 +101,21 @@ export async function GET(request: Request) {
         const startIndex = (page - 1) * perPage;
         const paginatedUsers = filtered.slice(startIndex, startIndex + perPage);
 
+        const users = await Promise.all(paginatedUsers.map(async user => {
+            const [orders, withdrawals] = await Promise.all([
+                supabaseAdmin.from('orders').select('id', { count: 'exact', head: true })
+                    .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`).not('status', 'in', '(completed,refunded,cancelled)'),
+                supabaseAdmin.from('wallet_withdrawals').select('id', { count: 'exact', head: true })
+                    .eq('user_id', user.id).not('status', 'in', '(completed,rejected,cancelled)'),
+            ]);
+            if (orders.error || withdrawals.error) throw orders.error || withdrawals.error;
+            return { ...user, restriction: restrictions.get(user.id) || { is_banned: false, version: 0 },
+                legacy_ban: !!user.user_metadata?.banned || !!(user.banned_until && new Date(user.banned_until).getTime() > Date.now()),
+                impact: { orders: orders.count || 0, withdrawals: withdrawals.count || 0 } };
+        }));
         return NextResponse.json({
-            users: paginatedUsers,
+            users,
+            restrictionsEnabled: process.env.ACCOUNT_RESTRICTIONS_ENABLED === 'true',
             total,
             stats,
             viewerRole: role

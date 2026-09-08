@@ -3,9 +3,12 @@
 import { use, useCallback, useEffect, useRef, useState } from 'react';
 import { LanguageSwitcher } from '@/components/i18n/LanguageSwitcher';
 import { useLocalization } from '@/context/LocalizationContext';
+import { AccountWithdrawalReview } from '@/components/AccountWithdrawalReview';
 import type { AdminTranslationKey } from '@/utils/i18n';
 
 type Statement = {
+  account_banned?: boolean;
+  account_holds?: Array<{ id: string; event: { reason: string } }>;
   actor_role: 'admin' | 'moderator';
   withdrawal: {
     id: string;
@@ -299,6 +302,7 @@ export default function WithdrawalDetailPage({ params }: { params: Promise<{ id:
 
   return (
     <div className="space-y-6 pb-12">
+      <AccountWithdrawalReview statement={statement} />
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">{t('withdrawal_statement')}</h1>
@@ -389,13 +393,13 @@ export default function WithdrawalDetailPage({ params }: { params: Promise<{ id:
           <h2 className="font-semibold">{t('transfer_controls')}</h2>
           <div className="mt-4 flex flex-wrap gap-2">
             {withdrawal.status === 'pending' && (
-              <button disabled={acting} onClick={() => action('verify_for_transfer')} className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white disabled:opacity-50">
+              <button disabled={acting || statement?.account_banned || !!statement?.account_holds?.length} onClick={() => action('verify_for_transfer')} className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white disabled:opacity-50">
                 {t('verify_lock')}
               </button>
             )}
             {withdrawal.status === 'processing' && !withdrawal.transfer_started_at && (
               <>
-                <button disabled={acting} onClick={() => action('start_transfer')} className="rounded-lg bg-orange-500 px-4 py-2 text-sm text-white disabled:opacity-50">{t('start_transfer')}</button>
+                <button disabled={acting || statement?.account_banned || !!statement?.account_holds?.length} onClick={() => action('start_transfer')} className="rounded-lg bg-orange-500 px-4 py-2 text-sm text-white disabled:opacity-50">{t('start_transfer')}</button>
                 <button disabled={acting} onClick={() => action('release_claim')} className="rounded-lg border px-4 py-2 text-sm disabled:opacity-50">{t('release_claim')}</button>
               </>
             )}

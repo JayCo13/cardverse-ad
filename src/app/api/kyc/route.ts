@@ -226,6 +226,7 @@ export async function PATCH(request: NextRequest) {
             const { error: notifyError } = await supabase.from('notifications').insert({
                 user_id: verification.user_id,
                 type: 'kyc_rejected',
+                metadata: { version: 1, reason: rejection_reason || undefined },
                 title: '❌ Xác minh bị từ chối',
                 message: `Lý do: ${rejection_reason || 'Không đạt yêu cầu'}. Bạn có thể gửi lại.`,
             });

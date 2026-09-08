@@ -22,7 +22,11 @@ export async function GET(request: NextRequest) {
             .order('created_at', { ascending: false })
             .limit(50);
 
-        if (status) {
+        if (status === 'account_review') {
+            const { data: held, error } = await supabase.from('account_review_holds').select('order_id').is('resolved_at', null).not('order_id', 'is', null);
+            if (error) throw error;
+            query = query.in('id', (held || []).map(row => row.order_id));
+        } else if (status) {
             query = query.eq('status', status);
         }
 
@@ -38,7 +42,11 @@ export async function GET(request: NextRequest) {
         // reviewer is shown and what the policy says must not be able to drift.
         // Only disputed rows need it, and there are rarely many in one page.
         const orders = ordersResult.data || [];
-        const disputed = orders.filter(o => o.status === 'disputed');
+        const { data: holds, error: holdError } = await supabase.from('account_review_holds')
+            .select('order_id,created_at,event:account_restriction_events(reason,actor_id)').in('order_id', orders.map(o => o.id)).is('resolved_at', null);
+        if (holdError) throw holdError;
+        for (const order of orders) (order as Record<string, unknown>).account_holds = (holds || []).filter(h => h.order_id === order.id);
+        const disputed = orders.filter(o => o.status === 'disputed' || (holds || []).some(h => h.order_id === o.id));
         const verdicts = await Promise.all(disputed.map(async (order) => {
             const { data } = await supabase.rpc('dispute_evidence_verdict', { p_order_id: order.id });
             return [order.id, data] as const;
@@ -139,12 +147,22 @@ export async function PATCH(request: NextRequest) {
             }).eq('id', order_id);
         }
 
-        const { data: resolution, error: resolutionError } = await supabase.rpc('resolve_marketplace_dispute', {
+        const { data: holds, error: holdsError } = await supabase.from('account_review_holds').select('id').eq('order_id', order_id).is('resolved_at', null).limit(1);
+        if (holdsError) throw holdsError;
+        // A replay must keep using the hold wrapper after the hold was resolved.
+        const { data: previous, error: previousError } = await supabase.from('account_review_decisions').select('idempotency_key').eq('idempotency_key', idempotencyKey).maybeSingle();
+        if (previousError) throw previousError;
+        const held = !!holds?.length || !!previous;
+        if (held && (typeof note !== 'string' || note.trim().length < 10 || note.trim().length > 1000)) {
+            return NextResponse.json({ error: 'Lý do cần 10–1.000 ký tự.' }, { status: 400 });
+        }
+        const rpc = held ? 'resolve_account_order_hold' : 'resolve_marketplace_dispute';
+        const { data: resolution, error: resolutionError } = await supabase.rpc(rpc, {
             p_order_id: order_id,
             p_action: action,
             p_actor_id: actor.id,
             p_actor_role: actor.role,
-            p_idempotency_key: idempotencyKey,
+            ...(held ? { p_key: idempotencyKey, p_reason: note.trim() } : { p_idempotency_key: idempotencyKey }),
         });
         if (resolutionError) throw resolutionError;
 
