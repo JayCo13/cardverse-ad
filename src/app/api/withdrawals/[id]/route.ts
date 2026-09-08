@@ -4,6 +4,7 @@ import { createAdminClient } from '@/utils/supabase/admin';
 import { sendWithdrawalRejected } from '@/utils/mail/withdrawal-notifications';
 
 const ACTIONS = new Set([
+  'resolve_account_hold',
   'verify_for_transfer',
   'start_transfer',
   'release_claim',
@@ -32,7 +33,13 @@ export async function GET(
 
   // The RPC contract intentionally contains masked destinations only. Never
   // enrich this GET with wallet_withdrawals.bank_account_number.
-  return NextResponse.json({ ...data, actor_role: actor.role }, {
+  const { data: holds, error: holdsError } = await admin.from('account_review_holds')
+    .select('id,created_at,event:account_restriction_events(reason,actor_id)').eq('withdrawal_id', id).is('resolved_at', null);
+  if (holdsError) return NextResponse.json({ error: holdsError.message }, { status: 503 });
+  const { data: withdrawal } = await admin.from('wallet_withdrawals').select('user_id').eq('id', id).single();
+  const { data: restriction, error: restrictionError } = await admin.from('account_restrictions').select('is_banned').eq('user_id', withdrawal?.user_id).maybeSingle();
+  if (restrictionError) return NextResponse.json({ error: restrictionError.message }, { status: 503 });
+  return NextResponse.json({ ...data, account_holds: holds, account_banned: restriction?.is_banned || false, actor_role: actor.role }, {
     headers: { 'Cache-Control': 'private, no-store, max-age=0' },
   });
 }
@@ -53,6 +60,15 @@ export async function PATCH(
 
     const body = await request.json();
     const action = typeof body.action === 'string' ? body.action : '';
+    if (action === 'resolve_account_hold') {
+      const reason = typeof body.payload?.reason === 'string' ? body.payload.reason.trim() : '';
+      if (reason.length < 10 || reason.length > 1000) return NextResponse.json({ error: 'Lý do cần 10–1.000 ký tự.' }, { status: 400 });
+      const { data, error } = await createAdminClient().rpc('resolve_account_withdrawal_hold', {
+        p_withdrawal_id: id, p_reason: reason, p_actor_id: actor.id, p_actor_role: actor.role, p_key: idempotencyKey,
+      });
+      if (error) return NextResponse.json({ error: error.message }, { status: 409 });
+      return NextResponse.json(data);
+    }
     if (!ACTIONS.has(action)) {
       return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
     }

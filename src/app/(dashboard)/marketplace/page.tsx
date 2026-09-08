@@ -5,6 +5,7 @@ import { Storefront, Package, CheckCircle, CurrencyDollar, ArrowRight } from "@p
 import { AlertTriangle, Loader2 } from "lucide-react";
 
 type Order = {
+    account_holds?: Array<{ created_at: string; event: { reason: string; actor_id: string } }>;
     id: string;
     card_id: string;
     amount: number;
@@ -114,18 +115,22 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
     shipping: { label: 'Đang giao', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300' },
     delivered: { label: 'Đã giao', color: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-300' },
     completed: { label: 'Hoàn tất', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' },
+    account_review: { label: 'Cần xử lý do khóa tài khoản', color: 'bg-amber-100 text-amber-900' },
     disputed: { label: 'Khiếu nại', color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300' },
     refunded: { label: 'Hoàn tiền', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300' },
     cancelled: { label: 'Đã hủy', color: 'bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-400' },
 };
 
-const FILTER_TABS = ['all', 'paid', 'shipping', 'completed', 'disputed'];
+const FILTER_TABS = ['account_review', 'all', 'paid', 'shipping', 'completed', 'disputed'];
 
 export default function MarketplacePage() {
     const [orders, setOrders] = useState<Order[]>([]);
     const [stats, setStats] = useState<Stats>({ total: 0, completed: 0, disputed: 0, totalRevenue: 0, totalVolume: 0 });
     const [isLoading, setIsLoading] = useState(true);
     const [activeFilter, setActiveFilter] = useState('all');
+    const [decision, setDecision] = useState<{ id: string; action: 'refund_buyer' | 'release_seller' } | null>(null);
+    const [decisionReason, setDecisionReason] = useState('');
+    const [decisionError, setDecisionError] = useState('');
     const [actionLoading, setActionLoading] = useState<string | null>(null);
     const actionKeys = useRef<Record<string, string>>({});
 
@@ -151,7 +156,7 @@ export default function MarketplacePage() {
     const handleDispute = async (orderId: string, action: 'refund_buyer' | 'release_seller') => {
         setActionLoading(orderId);
         try {
-            const fingerprint = `${orderId}:${action}`;
+            const fingerprint = `${orderId}:${action}:${decisionReason.trim()}`;
             actionKeys.current[fingerprint] ||= crypto.randomUUID();
             const res = await fetch('/api/marketplace', {
                 method: 'PATCH',
@@ -159,13 +164,15 @@ export default function MarketplacePage() {
                     'Content-Type': 'application/json',
                     'Idempotency-Key': actionKeys.current[fingerprint],
                 },
-                body: JSON.stringify({ order_id: orderId, action }),
+                body: JSON.stringify({ order_id: orderId, action, note: decisionReason.trim() }),
             });
-            if (!res.ok) throw new Error('Failed');
+            const result = await res.json();
+            if (!res.ok) throw new Error(result.error || 'Không thể xử lý đơn');
+            setDecision(null);
             delete actionKeys.current[fingerprint];
             fetchOrders(activeFilter);
         } catch (err) {
-            console.error('Dispute resolution error:', err);
+            setDecisionError(err instanceof Error ? err.message : 'Không thể xử lý đơn');
         } finally {
             setActionLoading(null);
         }
@@ -175,6 +182,14 @@ export default function MarketplacePage() {
 
     return (
         <div className="space-y-6">
+            {decision && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"><section role="dialog" aria-modal="true" aria-labelledby="decision-title" className="w-full max-w-lg space-y-4 rounded-xl bg-white p-6 dark:bg-zinc-900">
+                <h2 id="decision-title" className="font-bold">{decision.action === 'refund_buyer' ? 'Hoàn buyer' : 'Giải ngân seller'} — {decision.id}</h2>
+                <p>Kiểm tra bằng chứng và nguồn tiền của đơn trước khi xác nhận.</p>
+                <label className="block">Lý do quyết định (10–1.000 ký tự)<textarea autoFocus value={decisionReason} onChange={e => setDecisionReason(e.target.value)} disabled={!!actionLoading} maxLength={1000} rows={4} className="mt-2 w-full rounded border bg-transparent p-3" /></label>
+                {decisionError && <p role="alert" className="text-red-500">{decisionError}</p>}
+                <button onClick={() => handleDispute(decision.id, decision.action)} disabled={!!actionLoading || decisionReason.trim().length < 10} className="rounded bg-orange-500 px-4 py-2 disabled:opacity-40">{actionLoading ? 'Đang xử lý…' : 'Xác nhận'}</button>
+                <button disabled={!!actionLoading} onClick={() => setDecision(null)} className="ml-3 rounded border px-4 py-2">Đóng</button>
+            </section></div>}
             <div>
                 <h1 className="text-2xl font-bold text-zinc-900 dark:text-white flex items-center gap-2">
                     <Storefront className="h-7 w-7 text-orange-500" weight="fill" />
@@ -269,7 +284,8 @@ export default function MarketplacePage() {
                                             {new Date(order.created_at).toLocaleDateString('vi-VN')}
                                         </td>
                                         <td className="px-4 py-3">
-                                            {order.status === 'disputed' && order.evidence && (() => {
+                                            {order.account_holds?.map((hold, i) => <p key={i} className="mt-2 whitespace-pre-wrap break-words text-amber-600">Cần xử lý do khóa tài khoản: {hold.event?.reason}</p>)}
+                                            {(order.status === 'disputed' || !!order.account_holds?.length) && order.evidence && (() => {
                                                 const v = VERDICT_LABELS[order.evidence.verdict];
                                                 const rec = order.evidence.recommended_action;
                                                 return (
@@ -309,10 +325,10 @@ export default function MarketplacePage() {
                                                     </div>
                                                 );
                                             })()}
-                                            {order.status === 'disputed' && (
+                                            {(order.status === 'disputed' || !!order.account_holds?.length) && (
                                                 <div className="flex gap-1">
                                                     <button
-                                                        onClick={() => handleDispute(order.id, 'refund_buyer')}
+                                                        onClick={() => { setDecision({ id: order.id, action: 'refund_buyer' }); setDecisionReason(''); setDecisionError(''); }}
                                                         disabled={actionLoading === order.id}
                                                         className="px-2 py-1 rounded bg-red-500 hover:bg-red-600 text-white text-xs disabled:opacity-50"
                                                         title="Hoàn tiền cho buyer"
@@ -320,7 +336,7 @@ export default function MarketplacePage() {
                                                         {actionLoading === order.id ? '...' : 'Hoàn tiền'}
                                                     </button>
                                                     <button
-                                                        onClick={() => handleDispute(order.id, 'release_seller')}
+                                                        onClick={() => { setDecision({ id: order.id, action: 'release_seller' }); setDecisionReason(''); setDecisionError(''); }}
                                                         disabled={actionLoading === order.id}
                                                         className="px-2 py-1 rounded bg-green-500 hover:bg-green-600 text-white text-xs disabled:opacity-50"
                                                         title="Release tiền cho seller"

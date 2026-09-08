@@ -10,6 +10,9 @@ import {
 import { useRole } from "@/context/RoleContext";
 
 interface User {
+    restriction?: { is_banned: boolean; version: number; reason?: string };
+    legacy_ban?: boolean;
+    impact?: { orders: number; withdrawals: number };
     id: string;
     email: string;
     created_at: string;
@@ -54,6 +57,13 @@ function formatRelativeTime(dateString: string): string {
 
 export default function UsersPage() {
     const { isModerator } = useRole();
+    const [banTarget, setBanTarget] = useState<User | null>(null);
+    const [banReason, setBanReason] = useState('');
+    const [banKey, setBanKey] = useState('');
+    const [banBusy, setBanBusy] = useState(false);
+    const [banError, setBanError] = useState('');
+    const [banEvents, setBanEvents] = useState<Array<{ id: string; action: string; reason: string; actor_id: string; created_at: string }>>([]);
+    const [restrictionsEnabled, setRestrictionsEnabled] = useState(false);
     const [users, setUsers] = useState<User[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -110,6 +120,7 @@ export default function UsersPage() {
             const calculatedTotalPages = Math.max(1, Math.ceil(total / limit));
 
             setUsers(fetchedUsers);
+            setRestrictionsEnabled(data.restrictionsEnabled === true);
             setTotalUsers(total);
             if (data.stats) {
                 setStats(data.stats);
@@ -151,27 +162,30 @@ export default function UsersPage() {
         }
     };
 
-    const handleBanToggle = async (id: string, email: string, currentlyBanned: boolean) => {
-        const action = currentlyBanned ? 'unban' : 'ban';
-        const confirmMsg = currentlyBanned
-            ? `Unban ${email}? They will be able to sign in again.`
-            : `Ban ${email}? They will no longer be able to sign in.`;
-        if (!confirm(confirmMsg)) return;
-
+    const handleBanToggle = async (target: User) => {
+        setBanTarget(target); setBanReason(''); setBanError(''); setBanEvents([]); setBanKey(crypto.randomUUID());
         try {
-            const res = await fetch(`/api/users/${id}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action })
+            const response = await fetch(`/api/users/${target.id}/restrictions`, { cache: 'no-store' });
+            if (!response.ok) throw new Error('Không tải được lịch sử. Vui lòng thử lại.');
+            const data = await response.json(); setBanEvents(data.events || []);
+        } catch (error) { setBanError(error instanceof Error ? error.message : 'Không tải được lịch sử'); }
+    };
+    const submitBan = async () => {
+        if (!banTarget || banBusy) return;
+        setBanBusy(true); setBanError('');
+        try {
+            const response = await fetch(`/api/users/${banTarget.id}`, {
+                method: 'PATCH', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': banKey },
+                body: JSON.stringify({ action: banTarget.restriction?.is_banned ? 'unban' : 'ban', reason: banReason.trim(), expected_version: banTarget.restriction?.version || 0 }),
             });
-            if (!res.ok) {
-                const data = await res.json().catch(() => ({}));
-                throw new Error(data.error || `Failed to ${action} user`);
+            const data = await response.json();
+            if (!response.ok) {
+                if (response.status === 409) { await loadUsers(currentPage); throw new Error('Trạng thái đã thay đổi. Đóng hộp thoại và mở lại từ danh sách mới.'); }
+                throw new Error(data.error || 'Không thể cập nhật');
             }
-            await loadUsers(currentPage);
-        } catch (err: any) {
-            alert(err.message);
-        }
+            setBanTarget(null); await loadUsers(currentPage);
+        } catch (error) { setBanError(error instanceof Error ? error.message : 'Không thể cập nhật'); }
+        finally { setBanBusy(false); }
     };
 
     const handleRoleToggle = async (id: string, email: string, makeAdmin: boolean) => {
@@ -237,6 +251,26 @@ export default function UsersPage() {
 
     return (
         <div className="space-y-6">
+            {banTarget && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+                <section role="dialog" aria-modal="true" aria-labelledby="ban-title" className="max-h-[90vh] w-full max-w-lg space-y-4 overflow-y-auto rounded-2xl bg-white p-6 text-zinc-900 dark:bg-zinc-900 dark:text-white">
+                    <h2 id="ban-title" className="text-xl font-bold">{banTarget.restriction?.is_banned ? 'Mở khóa tài khoản' : 'Khóa tài khoản'}</h2>
+                    <p className="break-all">{banTarget.email}<br />{banTarget.id}</p>
+                    <p>Trạng thái: {banTarget.restriction?.is_banned ? 'Đang bị khóa' : 'Đang hoạt động'}</p>
+                    <p>Đơn đang mở: {banTarget.impact?.orders ?? 0}. Khoản rút đang xử lý: {banTarget.impact?.withdrawals ?? 0}.</p>
+                    <p className="text-amber-600">Admin cần tiếp tục xử lý các nghĩa vụ này. Mở khóa không tự bỏ khoản giữ xét duyệt.</p>
+                    <label className="block">Lý do (10–1.000 ký tự). Lý do khóa sẽ hiển thị cho người dùng.
+                        <textarea autoFocus disabled={banBusy} value={banReason} onChange={e => { setBanReason(e.target.value); setBanKey(crypto.randomUUID()); }} maxLength={1000} rows={4} className="mt-2 w-full rounded border bg-transparent p-3" />
+                    </label>
+                    {banError && <p role="alert" className="text-red-500">{banError}</p>}
+                    {!restrictionsEnabled && <p>Chưa bật thao tác: cần hoàn tất kiểm thử tích hợp.</p>}
+                    <div className="flex gap-3">
+                        <button disabled={banBusy || !restrictionsEnabled || banReason.trim().length < 10} onClick={submitBan} className="rounded bg-orange-500 px-4 py-2 disabled:opacity-40">{banBusy ? 'Đang xử lý…' : 'Xác nhận'}</button>
+                        <button disabled={banBusy} onClick={() => setBanTarget(null)} className="rounded border px-4 py-2">Đóng</button>
+                    </div>
+                    <h3 className="font-bold">Lịch sử Ban/Unban (100 lần gần nhất)</h3>
+                    {banEvents.map(event => <article key={event.id} className="border-t py-2 text-sm"><p>{event.action} — {new Date(event.created_at).toLocaleString('vi-VN')}</p><p className="break-all">{event.actor_id}</p><p className="whitespace-pre-wrap break-words">{event.reason}</p></article>)}
+                </section>
+            </div>}
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-white flex items-center gap-2">
@@ -406,6 +440,8 @@ export default function UsersPage() {
                         onChange={(e) => setFilterOption(e.target.value)}
                         className="appearance-none w-full bg-zinc-50 dark:bg-zinc-950/50 border border-zinc-200 dark:border-white/10 rounded-xl py-2 pl-10 pr-10 text-zinc-900 dark:text-white focus:outline-none focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/50 transition-all text-sm cursor-pointer"
                     >
+                        <option value="banned">Đang bị khóa</option>
+                        <option value="legacy_ban">Ban cũ — Cần xác nhận</option>
                         <option value="all">Tất cả người dùng (All Users)</option>
                         {isModerator && (
                             <>
@@ -462,7 +498,7 @@ export default function UsersPage() {
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center gap-2 flex-wrap">
                                                     <a href={`/users/${user.id}`} className="text-zinc-900 dark:text-zinc-200 font-medium hover:text-orange-500 dark:hover:text-orange-400 transition-colors">
-                                                        {user.email}
+                                                        {user.email}{user.legacy_ban && <span className="ml-2 text-amber-500">Cần xác nhận ban cũ</span>}
                                                     </a>
                                                     {isNew24h ? (
                                                         <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-orange-500/15 text-orange-500 border border-orange-500/30">
@@ -522,14 +558,14 @@ export default function UsersPage() {
                                                 <UsersThree className="w-5 h-5" />
                                             </button>
                                             <button
-                                                onClick={() => handleBanToggle(user.id, user.email, !!user.user_metadata?.banned)}
-                                                className={`p-2 rounded-lg transition-colors ${user.user_metadata?.banned
+                                                onClick={() => handleBanToggle(user)}
+                                                className={`p-2 rounded-lg transition-colors ${user.restriction?.is_banned
                                                     ? 'text-emerald-500 hover:text-emerald-400 hover:bg-emerald-400/10'
                                                     : 'text-zinc-500 hover:text-yellow-400 hover:bg-yellow-400/10'
                                                     }`}
-                                                title={user.user_metadata?.banned ? 'Unban User' : 'Ban User'}
+                                                title={user.restriction?.is_banned ? 'Unban User' : 'Ban User'}
                                             >
-                                                {user.user_metadata?.banned ? (
+                                                {user.restriction?.is_banned ? (
                                                     <CheckCircle className="w-5 h-5" />
                                                 ) : (
                                                     <Prohibit className="w-5 h-5" />
