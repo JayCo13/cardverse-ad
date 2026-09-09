@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Storefront, Package, CheckCircle, CurrencyDollar, ArrowRight } from "@phosphor-icons/react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Storefront, Package, CheckCircle, CurrencyDollar, ArrowRight, Eye, X, Truck, SealCheck, Receipt, Scales } from "@phosphor-icons/react";
 import { AlertTriangle, Loader2 } from "lucide-react";
 
 type Order = {
@@ -128,9 +129,16 @@ export default function MarketplacePage() {
     const [stats, setStats] = useState<Stats>({ total: 0, completed: 0, disputed: 0, totalRevenue: 0, totalVolume: 0 });
     const [isLoading, setIsLoading] = useState(true);
     const [activeFilter, setActiveFilter] = useState('all');
+    const [detail, setDetail] = useState<Order | null>(null);
     const [decision, setDecision] = useState<{ id: string; action: 'refund_buyer' | 'release_seller' } | null>(null);
     const [decisionReason, setDecisionReason] = useState('');
     const [decisionError, setDecisionError] = useState('');
+    // Deliberately separate from `action`. Where the money goes and who was at
+    // fault usually agree, but not always — a refund for a parcel the carrier
+    // lost is nobody's fault, and releasing to the seller after a buyer swapped
+    // the card on return is a −20 for that buyer. Defaults to recording nothing,
+    // so a verdict is always something a person chose.
+    const [verdict, setVerdict] = useState('');
     const [actionLoading, setActionLoading] = useState<string | null>(null);
     const actionKeys = useRef<Record<string, string>>({});
 
@@ -164,11 +172,12 @@ export default function MarketplacePage() {
                     'Content-Type': 'application/json',
                     'Idempotency-Key': actionKeys.current[fingerprint],
                 },
-                body: JSON.stringify({ order_id: orderId, action, note: decisionReason.trim() }),
+                body: JSON.stringify({ order_id: orderId, action, note: decisionReason.trim(), verdict: verdict || null }),
             });
             const result = await res.json();
             if (!res.ok) throw new Error(result.error || 'Không thể xử lý đơn');
             setDecision(null);
+            setDetail(null);
             delete actionKeys.current[fingerprint];
             fetchOrders(activeFilter);
         } catch (err) {
@@ -182,14 +191,76 @@ export default function MarketplacePage() {
 
     return (
         <div className="space-y-6">
-            {decision && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"><section role="dialog" aria-modal="true" aria-labelledby="decision-title" className="w-full max-w-lg space-y-4 rounded-xl bg-white p-6 dark:bg-zinc-900">
-                <h2 id="decision-title" className="font-bold">{decision.action === 'refund_buyer' ? 'Hoàn buyer' : 'Giải ngân seller'} — {decision.id}</h2>
-                <p>Kiểm tra bằng chứng và nguồn tiền của đơn trước khi xác nhận.</p>
-                <label className="block">Lý do quyết định (10–1.000 ký tự)<textarea autoFocus value={decisionReason} onChange={e => setDecisionReason(e.target.value)} disabled={!!actionLoading} maxLength={1000} rows={4} className="mt-2 w-full rounded border bg-transparent p-3" /></label>
-                {decisionError && <p role="alert" className="text-red-500">{decisionError}</p>}
-                <button onClick={() => handleDispute(decision.id, decision.action)} disabled={!!actionLoading || decisionReason.trim().length < 10} className="rounded bg-orange-500 px-4 py-2 disabled:opacity-40">{actionLoading ? 'Đang xử lý…' : 'Xác nhận'}</button>
-                <button disabled={!!actionLoading} onClick={() => setDecision(null)} className="ml-3 rounded border px-4 py-2">Đóng</button>
-            </section></div>}
+            <AnimatePresence>
+                {detail && <OrderDetail
+                    key="detail"
+                    order={detail}
+                    formatVND={formatVND}
+                    onClose={() => setDetail(null)}
+                    onDecide={action => { setDecision({ id: detail.id, action }); setDecisionReason(''); setVerdict(''); setDecisionError(''); }}
+                />}
+            </AnimatePresence>
+
+            {/* Sits above the detail sheet: a decision is taken while reading it. */}
+            <AnimatePresence>
+                {decision && <>
+                    <motion.div
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[60] bg-zinc-900/40 backdrop-blur-sm dark:bg-black/80"
+                        onClick={() => !actionLoading && setDecision(null)}
+                    />
+                    <motion.section
+                        role="dialog" aria-modal="true" aria-labelledby="decision-title"
+                        initial={{ opacity: 0, scale: 0.96, y: 16 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: 16 }}
+                        className="fixed left-1/2 top-1/2 z-[70] w-full max-w-md -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-3xl border border-zinc-200 bg-white p-6 shadow-2xl dark:border-white/10 dark:bg-zinc-950"
+                    >
+                        <div className="mb-5 flex items-center gap-3">
+                            <div className={`flex h-10 w-10 items-center justify-center rounded-xl border ${decision.action === 'refund_buyer' ? 'border-red-500/20 bg-red-500/10 text-red-400' : 'border-green-500/20 bg-green-500/10 text-green-400'}`}>
+                                <Scales weight="fill" className="h-5 w-5" />
+                            </div>
+                            <div className="min-w-0">
+                                <h2 id="decision-title" className="font-bold text-zinc-900 dark:text-white">{decision.action === 'refund_buyer' ? 'Hoàn tiền người mua' : 'Giải ngân người bán'}</h2>
+                                <p className="truncate font-mono text-xs text-zinc-500">{decision.id}</p>
+                            </div>
+                        </div>
+                        <p className="text-sm text-zinc-500">Kiểm tra bằng chứng và nguồn tiền của đơn trước khi xác nhận. Thao tác này không hoàn tác được.</p>
+                        <label className="mt-4 block">
+                            <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Lý do quyết định</span>
+                            <textarea
+                                autoFocus value={decisionReason} onChange={e => setDecisionReason(e.target.value)}
+                                disabled={!!actionLoading} maxLength={1000} rows={4}
+                                className="mt-2 w-full rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-900 outline-none transition-colors placeholder:text-zinc-500 focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/50 dark:border-white/10 dark:bg-zinc-900 dark:text-white"
+                            />
+                            <span className="mt-1 block text-xs text-zinc-500">{decisionReason.trim().length}/1.000 — tối thiểu 10 ký tự</span>
+                        </label>
+                        <label className="mt-4 block">
+                            <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Lỗi thuộc về ai</span>
+                            <select
+                                value={verdict} onChange={e => setVerdict(e.target.value)} disabled={!!actionLoading}
+                                className="mt-2 w-full rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-900 outline-none transition-colors focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/50 dark:border-white/10 dark:bg-zinc-900 dark:text-white"
+                            >
+                                <option value="">Không ghi kết luận</option>
+                                <option value="no_fault">Không bên nào có lỗi — 0</option>
+                                <option value="seller_wrong_item">Người bán giao sai hàng hoặc sai mô tả — −10</option>
+                                <option value="seller_counterfeit">Người bán bán hàng giả hoặc gian lận — −20</option>
+                                <option value="buyer_fraud">Người mua gian lận, ví dụ tráo thẻ — −20</option>
+                            </select>
+                            <span className="mt-1 block text-xs text-zinc-500">Tách riêng với việc tiền đi đâu. Đây là phần làm thay đổi điểm uy tín, và chỉ ghi khi bạn chọn.</span>
+                        </label>
+                        {decisionError && <p role="alert" className="mt-3 flex items-start gap-2 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-400"><AlertTriangle className="h-4 w-4 shrink-0" />{decisionError}</p>}
+                        <div className="mt-5 flex gap-3">
+                            <button
+                                onClick={() => handleDispute(decision.id, decision.action)}
+                                disabled={!!actionLoading || decisionReason.trim().length < 10}
+                                className={`flex h-10 flex-1 items-center justify-center gap-2 rounded-xl text-sm font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${decision.action === 'refund_buyer' ? 'bg-red-500 hover:bg-red-600' : 'bg-green-600 hover:bg-green-700'}`}
+                            >
+                                {actionLoading ? <><Loader2 className="h-4 w-4 animate-spin" />Đang xử lý…</> : 'Xác nhận'}
+                            </button>
+                            <button disabled={!!actionLoading} onClick={() => setDecision(null)} className="h-10 rounded-xl border border-zinc-200 px-4 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-50 disabled:opacity-40 dark:border-white/10 dark:text-zinc-400 dark:hover:bg-white/5">Đóng</button>
+                        </div>
+                    </motion.section>
+                </>}
+            </AnimatePresence>
             <div>
                 <h1 className="text-2xl font-bold text-zinc-900 dark:text-white flex items-center gap-2">
                     <Storefront className="h-7 w-7 text-orange-500" weight="fill" />
@@ -276,7 +347,7 @@ export default function MarketplacePage() {
                                         <td className="px-4 py-3 font-semibold">{formatVND(order.amount)}</td>
                                         <td className="px-4 py-3 text-orange-500">{formatVND(order.platform_fee)}</td>
                                         <td className="px-4 py-3">
-                                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusInfo.color}`}>
+                                            <span className={`inline-block whitespace-nowrap rounded-full px-2 py-1 text-xs font-medium ${statusInfo.color}`}>
                                                 {statusInfo.label}
                                             </span>
                                         </td>
@@ -284,71 +355,40 @@ export default function MarketplacePage() {
                                             {new Date(order.created_at).toLocaleDateString('vi-VN')}
                                         </td>
                                         <td className="px-4 py-3">
-                                            {order.account_holds?.map((hold, i) => <p key={i} className="mt-2 whitespace-pre-wrap break-words text-amber-600">Cần xử lý do khóa tài khoản: {hold.event?.reason}</p>)}
-                                            {(order.status === 'disputed' || !!order.account_holds?.length) && order.evidence && (() => {
-                                                const v = VERDICT_LABELS[order.evidence.verdict];
-                                                const rec = order.evidence.recommended_action;
-                                                return (
-                                                    <div className="mb-2 max-w-[230px] space-y-1">
-                                                        <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-medium ${v.color}`}>
-                                                            {v.label}
-                                                        </span>
-                                                        <p className="text-[11px] leading-4 text-zinc-500">{v.hint}</p>
-                                                        {(() => {
-                                                            const link = trackingLink(order.evidence!.shipping_provider, order.evidence!.tracking_number);
-                                                            if (!link) return order.evidence!.delivery_state === 'unverified' ? (
-                                                                <p className="text-[11px] text-zinc-500">Không có mã vận đơn tra cứu được.</p>
-                                                            ) : null;
-                                                            return (
-                                                                <a href={link.url} target="_blank" rel="noopener noreferrer" className="block text-[11px] text-blue-500 underline">
-                                                                    Tra cứu {link.name}: {order.evidence!.tracking_number}
-                                                                </a>
-                                                            );
-                                                        })()}
-                                                        <div className="flex gap-2 text-[11px]">
-                                                            {order.evidence.seller_video_url && (
-                                                                <a href={order.evidence.seller_video_url} target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">
-                                                                    Video đóng gói
-                                                                </a>
-                                                            )}
-                                                            {order.evidence.buyer_video_url && (
-                                                                <a href={order.evidence.buyer_video_url} target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">
-                                                                    Video mở hộp
-                                                                </a>
-                                                            )}
-                                                        </div>
-                                                        {rec && (
-                                                            <p className="text-[11px] font-medium text-zinc-600 dark:text-zinc-400">
-                                                                Khuyến nghị: {rec === 'refund_buyer' ? 'Hoàn tiền' : 'Release'}
-                                                            </p>
-                                                        )}
-                                                    </div>
-                                                );
-                                            })()}
-                                            {(order.status === 'disputed' || !!order.account_holds?.length) && (
-                                                <div className="flex gap-1">
-                                                    <button
-                                                        onClick={() => { setDecision({ id: order.id, action: 'refund_buyer' }); setDecisionReason(''); setDecisionError(''); }}
-                                                        disabled={actionLoading === order.id}
-                                                        className="px-2 py-1 rounded bg-red-500 hover:bg-red-600 text-white text-xs disabled:opacity-50"
-                                                        title="Hoàn tiền cho buyer"
-                                                    >
-                                                        {actionLoading === order.id ? '...' : 'Hoàn tiền'}
-                                                    </button>
-                                                    <button
-                                                        onClick={() => { setDecision({ id: order.id, action: 'release_seller' }); setDecisionReason(''); setDecisionError(''); }}
-                                                        disabled={actionLoading === order.id}
-                                                        className="px-2 py-1 rounded bg-green-500 hover:bg-green-600 text-white text-xs disabled:opacity-50"
-                                                        title="Release tiền cho seller"
-                                                    >
-                                                        {actionLoading === order.id ? '...' : 'Release'}
-                                                    </button>
-                                                </div>
-                                            )}
-                                            {order.dispute_reason && (
-                                                <p className="text-xs text-red-400 mt-1 max-w-[150px] truncate" title={order.dispute_reason}>
-                                                    {order.dispute_reason}
-                                                </p>
+                                            {/* The evidence, tracking links and dispute reason live in the detail
+                                              * sheet. Kept here they widened this column enough to squeeze the
+                                              * status pill onto two lines. */}
+                                            <div className="flex flex-wrap items-center gap-1.5">
+                                                <button
+                                                    onClick={() => setDetail(order)}
+                                                    className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-zinc-200 px-2.5 py-1.5 text-xs font-medium text-zinc-600 transition-colors hover:border-orange-500/40 hover:bg-orange-500/10 hover:text-orange-500 dark:border-white/10 dark:text-zinc-400"
+                                                >
+                                                    <Eye className="h-3.5 w-3.5" />Chi tiết
+                                                </button>
+                                                {(order.status === 'disputed' || !!order.account_holds?.length) && (
+                                                    <>
+                                                        <button
+                                                            onClick={() => { setDecision({ id: order.id, action: 'refund_buyer' }); setDecisionReason(''); setVerdict(''); setDecisionError(''); }}
+                                                            disabled={actionLoading === order.id}
+                                                            className="whitespace-nowrap rounded-lg bg-red-500 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-red-600 disabled:opacity-50"
+                                                            title="Hoàn tiền cho người mua"
+                                                        >
+                                                            {actionLoading === order.id ? '…' : 'Hoàn tiền'}
+                                                        </button>
+                                                        <button
+                                                            onClick={() => { setDecision({ id: order.id, action: 'release_seller' }); setDecisionReason(''); setVerdict(''); setDecisionError(''); }}
+                                                            disabled={actionLoading === order.id}
+                                                            className="whitespace-nowrap rounded-lg bg-green-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-green-700 disabled:opacity-50"
+                                                            title="Giải ngân cho người bán"
+                                                        >
+                                                            {actionLoading === order.id ? '…' : 'Giải ngân'}
+                                                        </button>
+                                                    </>
+                                                )}
+                                            </div>
+                                            {/* One short marker, so a held order is still spottable while scanning. */}
+                                            {!!order.account_holds?.length && (
+                                                <p className="mt-1.5 whitespace-nowrap text-[11px] font-medium text-amber-600">Cần xử lý do khóa tài khoản</p>
                                             )}
                                         </td>
                                     </tr>
@@ -359,5 +399,166 @@ export default function MarketplacePage() {
                 </div>
             )}
         </div>
+    );
+}
+
+/** One labelled block inside the detail sheet. */
+function Section({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
+    return (
+        <section className="border-t border-zinc-200 pt-5 dark:border-white/5">
+            <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                {icon}{title}
+            </h3>
+            {children}
+        </section>
+    );
+}
+
+function Party({ role, name, email, verified }: { role: string; name?: string; email?: string; verified?: boolean }) {
+    return (
+        <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3 dark:border-white/5 dark:bg-white/[0.02]">
+            <p className="text-xs text-zinc-500">{role}</p>
+            <p className="mt-1 flex items-center gap-1.5 font-medium text-zinc-900 dark:text-white">
+                <span className="truncate">{name || email || '—'}</span>
+                {verified && <SealCheck weight="fill" className="h-4 w-4 shrink-0 text-blue-500" aria-label="Đã xác minh" />}
+            </p>
+            {email && name && <p className="truncate text-xs text-zinc-500">{email}</p>}
+        </div>
+    );
+}
+
+/**
+ * Everything the API already returns about one order, in a sheet rather than
+ * crammed into the actions cell of the table.
+ */
+function OrderDetail({ order, formatVND, onClose, onDecide }: {
+    order: Order;
+    formatVND: (amount: number) => string;
+    onClose: () => void;
+    onDecide: (action: 'refund_buyer' | 'release_seller') => void;
+}) {
+    const statusInfo = STATUS_LABELS[order.status] || { label: order.status, color: '' };
+    const verdict = order.evidence ? VERDICT_LABELS[order.evidence.verdict] : null;
+    const link = trackingLink(order.evidence?.shipping_provider ?? null, order.tracking_number ?? order.evidence?.tracking_number ?? null);
+    const actionable = order.status === 'disputed' || !!order.account_holds?.length;
+
+    return (
+        <>
+            <motion.div
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                className="fixed inset-0 z-40 bg-zinc-900/40 backdrop-blur-sm dark:bg-black/80"
+                onClick={onClose}
+            />
+            <motion.section
+                role="dialog" aria-modal="true" aria-labelledby="order-detail-title"
+                initial={{ opacity: 0, scale: 0.96, y: 16 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: 16 }}
+                className="fixed left-1/2 top-1/2 z-50 flex max-h-[88vh] w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-2xl dark:border-white/10 dark:bg-zinc-950"
+            >
+                <div className="absolute right-0 top-0 h-[300px] w-[300px] -translate-y-1/2 translate-x-1/3 rounded-full bg-orange-500/10 blur-[80px]" />
+
+                <header className="relative flex items-start justify-between gap-4 border-b border-zinc-200 p-6 dark:border-white/5">
+                    <div className="flex min-w-0 items-center gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-orange-500/20 bg-orange-500/10">
+                            <Receipt weight="fill" className="h-5 w-5 text-orange-400" />
+                        </div>
+                        <div className="min-w-0">
+                            <h2 id="order-detail-title" className="text-lg font-bold text-zinc-900 dark:text-white">Chi tiết đơn hàng</h2>
+                            <p className="truncate font-mono text-xs text-zinc-500">{order.id}</p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} aria-label="Đóng" className="rounded-full bg-zinc-100/50 p-2 text-zinc-500 transition-colors hover:bg-zinc-200 hover:text-zinc-900 dark:bg-white/5 dark:hover:bg-white/10 dark:hover:text-white">
+                        <X className="h-4 w-4" />
+                    </button>
+                </header>
+
+                <div className="relative space-y-5 overflow-y-auto p-6">
+                    <div className="flex gap-4">
+                        {order.card?.image_url
+                            ? <img src={order.card.image_url} alt="" className="h-24 w-[68px] shrink-0 rounded-lg border border-zinc-200 object-cover dark:border-white/10" />
+                            : <div className="flex h-24 w-[68px] shrink-0 items-center justify-center rounded-lg border border-dashed border-zinc-300 dark:border-white/10"><Package className="h-5 w-5 text-zinc-500" /></div>}
+                        <div className="min-w-0 flex-1">
+                            <p className="font-semibold text-zinc-900 dark:text-white">{order.card?.name || 'Thẻ đã bị gỡ'}</p>
+                            {order.card?.category && <p className="text-xs text-zinc-500">{order.card.category}</p>}
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                                <span className={`rounded-full px-2 py-1 text-xs font-medium ${statusInfo.color}`}>{statusInfo.label}</span>
+                                <span className="text-xs text-zinc-500">{new Date(order.created_at).toLocaleString('vi-VN')}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                        <Party role="Người mua" name={order.buyer?.display_name} email={order.buyer?.email} />
+                        <Party role="Người bán" name={order.seller?.display_name} email={order.seller?.email} verified={order.seller?.seller_verified} />
+                    </div>
+
+                    <Section icon={<CurrencyDollar className="h-4 w-4" />} title="Thanh toán">
+                        <div className="grid grid-cols-3 gap-3">
+                            {[
+                                { label: 'Số tiền', value: formatVND(order.amount), cls: 'text-zinc-900 dark:text-white' },
+                                { label: 'Phí sàn', value: formatVND(order.platform_fee), cls: 'text-orange-500' },
+                                { label: 'Tổng trả', value: formatVND(order.total_paid), cls: 'text-zinc-900 dark:text-white' },
+                            ].map(m => (
+                                <div key={m.label} className="rounded-xl border border-zinc-200 bg-zinc-50 p-3 dark:border-white/5 dark:bg-white/[0.02]">
+                                    <p className="text-xs text-zinc-500">{m.label}</p>
+                                    <p className={`mt-0.5 font-semibold ${m.cls}`}>{m.value}</p>
+                                </div>
+                            ))}
+                        </div>
+                        <p className="mt-2 text-xs text-zinc-500">Phương thức: {order.payment_method || '—'}</p>
+                    </Section>
+
+                    <Section icon={<Truck className="h-4 w-4" />} title="Vận chuyển">
+                        {order.tracking_number ? (
+                            <p className="text-sm text-zinc-600 dark:text-zinc-300">
+                                <span className="font-mono">{order.tracking_number}</span>
+                                {link && <> — <a href={link.url} target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">Tra cứu {link.name}</a></>}
+                            </p>
+                        ) : <p className="text-sm text-zinc-500">Chưa có mã vận đơn.</p>}
+                        {order.evidence?.carrier_status && <p className="mt-1 text-xs text-zinc-500">Hãng báo: {order.evidence.carrier_status}</p>}
+                    </Section>
+
+                    {order.dispute_reason && (
+                        <Section icon={<AlertTriangle className="h-4 w-4" />} title="Lý do khiếu nại">
+                            <p className="whitespace-pre-wrap break-words rounded-xl border border-red-500/20 bg-red-500/5 p-3 text-sm text-zinc-700 dark:text-zinc-200">{order.dispute_reason}</p>
+                        </Section>
+                    )}
+
+                    {verdict && order.evidence && (
+                        <Section icon={<Scales className="h-4 w-4" />} title="Bằng chứng">
+                            <span className={`inline-block rounded px-2 py-0.5 text-[11px] font-medium ${verdict.color}`}>{verdict.label}</span>
+                            <p className="mt-2 text-sm leading-relaxed text-zinc-500">{verdict.hint}</p>
+                            <div className="mt-3 flex flex-wrap gap-3 text-sm">
+                                {order.evidence.seller_video_url && <a href={order.evidence.seller_video_url} target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">Video đóng gói</a>}
+                                {order.evidence.buyer_video_url && <a href={order.evidence.buyer_video_url} target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">Video mở hộp</a>}
+                                {!order.evidence.seller_video_url && !order.evidence.buyer_video_url && <span className="text-zinc-500">Không bên nào nộp video.</span>}
+                            </div>
+                            {order.evidence.recommended_action && (
+                                <p className="mt-3 text-sm font-medium text-zinc-600 dark:text-zinc-300">
+                                    Khuyến nghị: {order.evidence.recommended_action === 'refund_buyer' ? 'Hoàn tiền người mua' : 'Giải ngân người bán'}
+                                </p>
+                            )}
+                        </Section>
+                    )}
+
+                    {!!order.account_holds?.length && (
+                        <Section icon={<AlertTriangle className="h-4 w-4" />} title="Giữ do khóa tài khoản">
+                            {order.account_holds.map((hold, i) => (
+                                <div key={i} className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">
+                                    <p className="whitespace-pre-wrap break-words text-sm text-zinc-700 dark:text-zinc-200">{hold.event?.reason}</p>
+                                    <p className="mt-1 text-xs text-zinc-500">{new Date(hold.created_at).toLocaleString('vi-VN')}</p>
+                                </div>
+                            ))}
+                        </Section>
+                    )}
+                </div>
+
+                {actionable && (
+                    <footer className="relative flex gap-3 border-t border-zinc-200 p-6 dark:border-white/5">
+                        <button onClick={() => onDecide('refund_buyer')} className="h-10 flex-1 rounded-xl bg-red-500 text-sm font-semibold text-white transition-colors hover:bg-red-600">Hoàn tiền người mua</button>
+                        <button onClick={() => onDecide('release_seller')} className="h-10 flex-1 rounded-xl bg-green-600 text-sm font-semibold text-white transition-colors hover:bg-green-700">Giải ngân người bán</button>
+                    </footer>
+                )}
+            </motion.section>
+        </>
     );
 }
