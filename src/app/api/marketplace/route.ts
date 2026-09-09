@@ -83,10 +83,19 @@ export async function PATCH(request: NextRequest) {
             return NextResponse.json({ error: 'Idempotency-Key is required' }, { status: 400 });
         }
         const body = await request.json();
-        const { order_id, action, note } = body; // action: 'refund_buyer' | 'release_seller'
+        // `verdict` is who was at fault, and is separate from `action`, which is
+        // where the money goes. They usually agree but not always: a refund for a
+        // carrier loss is nobody's fault, and releasing to the seller after a
+        // buyer swapped the card on return is a −20 for that buyer. Only a person
+        // looking at the evidence can tell them apart, so nothing infers it.
+        const { order_id, action, note, verdict } = body; // action: 'refund_buyer' | 'release_seller'
 
         if (!order_id || !['refund_buyer', 'release_seller'].includes(action)) {
             return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
+        }
+        const VERDICTS = ['seller_wrong_item', 'seller_counterfeit', 'buyer_fraud', 'no_fault'];
+        if (verdict !== undefined && verdict !== null && !VERDICTS.includes(verdict)) {
+            return NextResponse.json({ error: 'Invalid verdict' }, { status: 400 });
         }
 
         let refundMailContext: {
@@ -167,6 +176,24 @@ export async function PATCH(request: NextRequest) {
         if (resolutionError) throw resolutionError;
 
         const result = resolution as { replayed?: boolean } | null;
+
+        // After the money, and never before it: a verdict that failed to record
+        // must not leave an unresolved dispute behind. It is idempotent on
+        // (user, event_type, order) so a retry of this whole handler cannot
+        // double-dock anyone.
+        if (verdict && !result?.replayed) {
+            const { error: verdictError } = await supabase.rpc('record_dispute_verdict', {
+                p_order_id: order_id,
+                p_verdict: verdict,
+                p_actor_id: actor.id,
+                p_actor_role: actor.role,
+                p_note: typeof note === 'string' ? note.trim().slice(0, 500) : null,
+            });
+            // Logged, not thrown. The refund has already happened; failing the
+            // request now would tell the operator to retry a payout that went
+            // through.
+            if (verdictError) console.error('Admin dispute verdict error:', verdictError);
+        }
         if (action === 'refund_buyer' && refundMailContext && !result?.replayed) {
             await sendOrderRefundEmails({
                 buyerEmail: refundMailContext.buyerEmail,

@@ -2,15 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-    SquaresFour,
-    Users,
-    CurrencyDollar,
-    EnvelopeSimple,
-    ShieldCheck,
-    Storefront,
-    Bank
-} from "@phosphor-icons/react";
+import { Bank, CurrencyDollar, EnvelopeSimple, Medal, ShieldCheck, SquaresFour, Storefront, Users } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { useAdminNotifications } from "@/context/AdminNotificationsContext";
 
@@ -23,6 +15,7 @@ const navigation = [
     { name: "Contact requests", href: "/contact-requests", icon: EnvelopeSimple, badgeKey: "openContactRequests" as const },
     { name: "KYC Sellers", href: "/kyc", icon: ShieldCheck, badgeKey: "pendingKYC" as const },
     { name: "Marketplace", href: "/marketplace", icon: Storefront, badgeKey: "disputedOrders" as const },
+    { name: "Reputation", href: "/reputation", icon: Medal },
 ];
 
 export function Sidebar() {
