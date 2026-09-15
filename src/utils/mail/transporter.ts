@@ -1,5 +1,4 @@
-// All email uses the CardVerseHub Gmail identity via ./transport.
-// Required: SMTP_USER=cardversehubsupport@gmail.com and SMTP_PASSWORD.
-// Optional: SMTP_HOST=smtp.gmail.com and SMTP_PORT=587 (or 465).
-// Legacy RESEND_* and SMTP_FROM_EMAIL settings do not override the sender.
-export { createMailTransporter, getFromAddress } from './transport';
+// All email is delivered by Resend through ./transport. Required:
+// RESEND_API_KEY; MAIL_FROM_EMAIL (default support@cardversehub.com, must be on
+// the domain verified in Resend) and MAIL_REPLY_TO (where replies land).
+export { createMailTransporter, getFromAddress, getSenderEmail, MAX_BCC_PER_MESSAGE } from './transport';

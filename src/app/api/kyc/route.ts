@@ -189,7 +189,7 @@ export async function PATCH(request: NextRequest) {
             const email = await resolveUserEmail(supabase, verification.user_id);
             if (email) {
                 // Must await: on serverless the function is frozen once the response
-                // returns, which would kill an un-awaited SMTP send mid-flight.
+                // returns, which would kill an un-awaited mail send mid-flight.
                 await sendKYCApproved(email, (verification as any).full_name);
             } else {
                 console.warn(`[Admin KYC] No email found for user ${verification.user_id}; approval email skipped.`);
