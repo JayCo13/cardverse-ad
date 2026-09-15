@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/utils/supabase/admin';
 import { getRole } from '@/utils/auth/getRole';
-import { createMailTransporter, getFromAddress } from '@/utils/mail/transporter';
+import { createMailTransporter, getFromAddress, getSenderEmail, MAX_BCC_PER_MESSAGE } from '@/utils/mail/transporter';
 
 // GET: Fetch sent email history
 export async function GET(request: Request) {
@@ -154,7 +154,8 @@ export async function POST(request: Request) {
                 errors.push(err instanceof Error ? err.message : 'Unknown error');
             }
         } else {
-            const batchSize = 50;
+            // Resend counts the sender in `to` against its 50-address cap.
+            const batchSize = MAX_BCC_PER_MESSAGE;
             for (let i = 0; i < emailList.length; i += batchSize) {
                 const batch = emailList.slice(i, i + batchSize);
                 try {
@@ -178,7 +179,7 @@ export async function POST(request: Request) {
         if (failCount > 0 && successCount === 0) status = 'failed';
 
         // Log to sent_emails table
-        const senderEmail = process.env.SMTP_USER || 'unknown';
+        const senderEmail = getSenderEmail();
         await supabaseAdmin.from('sent_emails').insert({
             subject,
             message,
