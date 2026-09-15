@@ -15,9 +15,10 @@ export function AccountWithdrawalReview({ statement }: { statement: { withdrawal
       const response = await fetch(`/api/withdrawals/${statement.withdrawal.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': requestKey }, body: JSON.stringify({ action: 'resolve_account_hold', payload: { reason: reason.trim() } }) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Không thể xử lý');
+      // Deliberately still busy: the reload is not instant, and releasing the
+      // button here lit it up again in that gap. Only a failure resets it.
       window.location.reload();
-    } catch (error) { setError(error instanceof Error ? error.message : 'Không thể xử lý'); }
-    finally { setBusy(false); }
+    } catch (error) { setError(error instanceof Error ? error.message : 'Không thể xử lý'); setBusy(false); }
   };
   return <section className="space-y-3 rounded-xl border border-amber-500 p-4">
     <h2 className="font-bold">Cần xử lý do khóa tài khoản</h2>

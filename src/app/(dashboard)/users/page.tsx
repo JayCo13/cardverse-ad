@@ -61,6 +61,10 @@ export default function UsersPage() {
     const [banReason, setBanReason] = useState('');
     const [banKey, setBanKey] = useState('');
     const [banBusy, setBanBusy] = useState(false);
+    // Row whose delete / role change is in flight: every action on that row is
+    // disabled until the list has reloaded, so nothing can be pressed twice
+    // or fired against a user that is being removed.
+    const [actingUserId, setActingUserId] = useState<string | null>(null);
     const [banError, setBanError] = useState('');
     const [banEvents, setBanEvents] = useState<Array<{ id: string; action: string; reason: string; actor_id: string; created_at: string }>>([]);
     const [restrictionsEnabled, setRestrictionsEnabled] = useState(false);
@@ -148,8 +152,10 @@ export default function UsersPage() {
     }, [debouncedSearch, filterOption]);
 
     const handleDelete = async (id: string, email: string) => {
+        if (actingUserId) return;
         if (!confirm(`Are you sure you want to PERMANENTLY DELETE the account for ${email}? This cannot be undone.`)) return;
 
+        setActingUserId(id);
         try {
             const res = await fetch(`/api/users/${id}`, { method: 'DELETE' });
             if (!res.ok) {
@@ -159,6 +165,8 @@ export default function UsersPage() {
             await loadUsers(currentPage);
         } catch (err: any) {
             alert(err.message);
+        } finally {
+            setActingUserId(null);
         }
     };
 
@@ -192,8 +200,10 @@ export default function UsersPage() {
         const confirmMsg = makeAdmin
             ? `Cấp quyền ADMIN cho ${email}? Họ sẽ đăng nhập được vào trang admin bằng chính tài khoản hiện tại.`
             : `Thu hồi quyền admin của ${email}? Họ sẽ không vào được trang admin nữa.`;
+        if (actingUserId) return;
         if (!confirm(confirmMsg)) return;
 
+        setActingUserId(id);
         try {
             const res = await fetch(`/api/users/${id}`, {
                 method: 'PATCH',
@@ -207,6 +217,8 @@ export default function UsersPage() {
             await loadUsers(currentPage);
         } catch (err: any) {
             alert(err.message);
+        } finally {
+            setActingUserId(null);
         }
     };
 
@@ -559,7 +571,8 @@ export default function UsersPage() {
                                             </button>
                                             <button
                                                 onClick={() => handleBanToggle(user)}
-                                                className={`p-2 rounded-lg transition-colors ${user.restriction?.is_banned
+                                                disabled={actingUserId === user.id}
+                                                className={`p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${user.restriction?.is_banned
                                                     ? 'text-emerald-500 hover:text-emerald-400 hover:bg-emerald-400/10'
                                                     : 'text-zinc-500 hover:text-yellow-400 hover:bg-yellow-400/10'
                                                     }`}
@@ -574,7 +587,8 @@ export default function UsersPage() {
                                             {isModerator && (
                                                 <button
                                                     onClick={() => handleRoleToggle(user.id, user.email, user.app_metadata?.role !== 'admin')}
-                                                    className={`p-2 rounded-lg transition-colors ${user.app_metadata?.role === 'admin'
+                                                    disabled={actingUserId === user.id}
+                                                    className={`p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${user.app_metadata?.role === 'admin'
                                                         ? 'text-orange-500 hover:text-red-400 hover:bg-red-400/10'
                                                         : 'text-zinc-500 hover:text-orange-400 hover:bg-orange-400/10'
                                                         }`}
@@ -586,10 +600,11 @@ export default function UsersPage() {
                                             {isModerator && (
                                                 <button
                                                     onClick={() => handleDelete(user.id, user.email)}
-                                                    className="p-2 text-zinc-500 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors"
+                                                    disabled={actingUserId === user.id}
+                                                    className="p-2 text-zinc-500 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                                     title="Delete User (Permanent)"
                                                 >
-                                                    <Trash className="w-5 h-5" />
+                                                    {actingUserId === user.id ? <CircleNotch className="w-5 h-5 animate-spin" /> : <Trash className="w-5 h-5" />}
                                                 </button>
                                             )}
                                         </td>
