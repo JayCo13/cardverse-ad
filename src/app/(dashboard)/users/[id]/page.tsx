@@ -345,8 +345,8 @@ export default function UserDetailsPage({ params }: UserDetailsProps) {
 
             {/* Giveaway Modal */}
             {showGiveaway && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/60 dark:bg-black/60 backdrop-blur-sm" onClick={() => setShowGiveaway(false)}>
-                    <div className="relative w-full max-w-2xl mx-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-2xl p-6 shadow-2xl transition-colors" onClick={(e) => e.stopPropagation()}>
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/60 p-3 backdrop-blur-sm dark:bg-black/60" onClick={() => setShowGiveaway(false)}>
+                    <div className="relative max-h-[92dvh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-zinc-200 bg-white p-5 shadow-2xl transition-colors dark:border-white/10 dark:bg-zinc-900 sm:p-6" onClick={(e) => e.stopPropagation()}>
                         {/* Close Button */}
                         <button
                             onClick={() => setShowGiveaway(false)}

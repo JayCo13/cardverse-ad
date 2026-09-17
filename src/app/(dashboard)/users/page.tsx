@@ -283,7 +283,7 @@ export default function UsersPage() {
                     {banEvents.map(event => <article key={event.id} className="border-t py-2 text-sm"><p>{event.action} — {new Date(event.created_at).toLocaleString('vi-VN')}</p><p className="break-all">{event.actor_id}</p><p className="whitespace-pre-wrap break-words">{event.reason}</p></article>)}
                 </section>
             </div>}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-white flex items-center gap-2">
                         <UsersThree className="w-8 h-8 text-orange-500" />
@@ -295,7 +295,7 @@ export default function UsersPage() {
                 {isModerator && (
                     <button
                         onClick={() => setIsModalOpen(true)}
-                        className="flex items-center gap-2 bg-gradient-to-r from-orange-500 to-orange-400 text-black px-4 py-2 rounded-xl font-bold hover:brightness-110 transition-all shadow-lg shadow-orange-500/20"
+                        className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-orange-400 px-4 py-2 font-bold text-black shadow-lg shadow-orange-500/20 transition-all hover:brightness-110 sm:w-auto"
                     >
                         <Plus weight="bold" />
                         Create Admin
@@ -654,7 +654,7 @@ export default function UsersPage() {
                             initial={{ opacity: 0, scale: 0.95, y: 20 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-white/10 rounded-3xl p-6 shadow-2xl z-50 overflow-hidden transition-colors duration-300"
+                            className="fixed inset-x-3 top-1/2 z-50 max-h-[90dvh] w-auto -translate-y-1/2 overflow-y-auto rounded-3xl border border-zinc-200 bg-white p-5 shadow-2xl transition-colors duration-300 dark:border-white/10 dark:bg-zinc-950 sm:left-1/2 sm:right-auto sm:w-full sm:max-w-md sm:-translate-x-1/2 sm:p-6"
                         >
                             {/* Background accent */}
                             <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-orange-500/10 blur-[80px] rounded-full pointer-events-none -translate-y-1/2 translate-x-1/3" />

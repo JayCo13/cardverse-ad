@@ -306,7 +306,7 @@ export default function WithdrawalDetailPage({ params }: { params: Promise<{ id:
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">{t('withdrawal_statement')}</h1>
-          <p className="font-mono text-xs text-zinc-500">{withdrawal.id}</p>
+          <p className="break-all font-mono text-xs text-zinc-500">{withdrawal.id}</p>
         </div>
         <LanguageSwitcher />
       </div>
@@ -550,7 +550,7 @@ export default function WithdrawalDetailPage({ params }: { params: Promise<{ id:
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4" role="presentation" onMouseDown={(event) => {
           if (event.target === event.currentTarget) closeActionModal();
         }}>
-          <div role="dialog" aria-modal="true" aria-labelledby="withdrawal-action-title" className="w-full max-w-lg rounded-2xl border border-zinc-700 bg-white p-6 shadow-2xl dark:bg-zinc-950">
+          <div role="dialog" aria-modal="true" aria-labelledby="withdrawal-action-title" className="max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-2xl border border-zinc-700 bg-white p-5 shadow-2xl dark:bg-zinc-950 sm:p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 id="withdrawal-action-title" className="text-xl font-semibold">{t(`modal_${modalAction}_title` as AdminTranslationKey)}</h2>

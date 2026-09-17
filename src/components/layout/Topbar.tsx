@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Bell, MagnifyingGlass, SignOut, ShieldStar, UserCircle, Sun, Moon, CheckCircle, XCircle, Warning, ShoppingCart, Info, Bank, EnvelopeSimple } from "@phosphor-icons/react";
+import { Bell, MagnifyingGlass, SignOut, ShieldStar, UserCircle, Sun, Moon, CheckCircle, XCircle, Warning, ShoppingCart, Info, Bank, EnvelopeSimple, List } from "@phosphor-icons/react";
 import { createClient } from "@/utils/supabase/client";
 import { useRouter } from "next/navigation";
 import { useRole } from "@/context/RoleContext";
@@ -9,7 +9,7 @@ import { useAdminNotifications, type AdminNotification } from "@/context/AdminNo
 import { useTheme } from "next-themes";
 import Link from "next/link";
 
-export function Topbar() {
+export function Topbar({ onOpenNavigation }: { onOpenNavigation: () => void }) {
     const router = useRouter();
     const supabase = createClient();
     const { role, isModerator } = useRole();
@@ -85,11 +85,16 @@ export function Topbar() {
     };
 
     return (
-        <div className="flex h-16 shrink-0 items-center justify-between border-b bg-white border-zinc-200 dark:bg-zinc-950 dark:border-zinc-800 px-6 transition-colors duration-300">
+        <header className="flex h-16 shrink-0 items-center justify-between gap-2 border-b border-zinc-200 bg-white px-3 transition-colors duration-300 dark:border-zinc-800 dark:bg-zinc-950 sm:px-6">
 
             {/* Search Bar */}
-            <div className="flex flex-1 items-center">
-                <div className="relative w-full max-w-md">
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+                <button type="button" onClick={onOpenNavigation} className="rounded-lg p-2 text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-900 lg:hidden">
+                    <span className="sr-only">Mở menu</span>
+                    <List className="h-6 w-6" />
+                </button>
+                <span className="truncate font-semibold text-zinc-900 dark:text-white sm:hidden">CardVerseHub</span>
+                <div className="relative hidden w-full max-w-md sm:block">
                     <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                         <MagnifyingGlass className="h-5 w-5 text-zinc-400 dark:text-zinc-500" aria-hidden="true" />
                     </div>
@@ -106,10 +111,10 @@ export function Topbar() {
             </div>
 
             {/* Right side actions */}
-            <div className="flex items-center space-x-4">
+            <div className="flex shrink-0 items-center gap-1 sm:gap-3">
                 {/* Role Badge */}
                 {role && (
-                    <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider border ${isModerator
+                    <div className={`hidden items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold uppercase tracking-wider sm:flex ${isModerator
                         ? 'bg-orange-500/10 text-orange-400 border-orange-500/20'
                         : 'bg-sky-500/10 text-sky-400 border-sky-500/20'
                         }`}>
@@ -152,11 +157,11 @@ export function Topbar() {
 
                     {/* Dropdown */}
                     {isOpen && (
-                        <div className="absolute right-0 mt-2 w-96 rounded-xl shadow-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 z-50 overflow-hidden">
+                        <div className="fixed inset-x-3 top-16 z-50 mt-2 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-900 sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:w-96">
                             {/* Header */}
-                            <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
+                            <div className="flex items-start justify-between gap-3 border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
                                 <h3 className="font-bold text-sm text-zinc-900 dark:text-white">Thông báo</h3>
-                                <div className="flex gap-2">
+                                <div className="flex flex-wrap justify-end gap-1.5">
                                     {badges.pendingKYC > 0 && (
                                         <span className="px-2 py-0.5 rounded-full bg-orange-100 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 text-[10px] font-bold">
                                             {badges.pendingKYC} KYC
@@ -223,7 +228,7 @@ export function Topbar() {
                             </div>
 
                             {/* Footer */}
-                            <div className="px-4 py-2 border-t border-zinc-200 dark:border-zinc-800 flex justify-between">
+                            <div className="flex flex-wrap justify-between gap-2 border-t border-zinc-200 px-4 py-2 dark:border-zinc-800">
                                 <Link
                                     href="/kyc"
                                     onClick={() => setIsOpen(false)}
@@ -270,6 +275,6 @@ export function Topbar() {
                     </button>
                 </div>
             </div>
-        </div>
+        </header>
     );
 }

@@ -212,7 +212,7 @@ export default function MarketplacePage() {
                     <motion.section
                         role="dialog" aria-modal="true" aria-labelledby="decision-title"
                         initial={{ opacity: 0, scale: 0.96, y: 16 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: 16 }}
-                        className="fixed left-1/2 top-1/2 z-[70] w-full max-w-md -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-3xl border border-zinc-200 bg-white p-6 shadow-2xl dark:border-white/10 dark:bg-zinc-950"
+                        className="fixed inset-x-3 top-1/2 z-[70] max-h-[90dvh] w-auto -translate-y-1/2 overflow-y-auto rounded-3xl border border-zinc-200 bg-white p-5 shadow-2xl dark:border-white/10 dark:bg-zinc-950 sm:left-1/2 sm:right-auto sm:w-full sm:max-w-md sm:-translate-x-1/2 sm:p-6"
                     >
                         <div className="mb-5 flex items-center gap-3">
                             <div className={`flex h-10 w-10 items-center justify-center rounded-xl border ${decision.action === 'refund_buyer' ? 'border-red-500/20 bg-red-500/10 text-red-400' : 'border-green-500/20 bg-green-500/10 text-green-400'}`}>
@@ -270,7 +270,7 @@ export default function MarketplacePage() {
             </div>
 
             {/* Stats Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-5 md:gap-4">
                 {[
                     { label: 'Tổng đơn', value: stats.total, icon: <Package className="h-5 w-5" />, color: 'text-blue-500' },
                     { label: 'Hoàn tất', value: stats.completed, icon: <CheckCircle className="h-5 w-5" />, color: 'text-green-500' },
@@ -452,7 +452,7 @@ function OrderDetail({ order, formatVND, onClose, onDecide }: {
             <motion.section
                 role="dialog" aria-modal="true" aria-labelledby="order-detail-title"
                 initial={{ opacity: 0, scale: 0.96, y: 16 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: 16 }}
-                className="fixed left-1/2 top-1/2 z-50 flex max-h-[88vh] w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-2xl dark:border-white/10 dark:bg-zinc-950"
+                className="fixed inset-x-3 top-1/2 z-50 flex max-h-[90dvh] w-auto -translate-y-1/2 flex-col overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-2xl dark:border-white/10 dark:bg-zinc-950 sm:left-1/2 sm:right-auto sm:w-full sm:max-w-2xl sm:-translate-x-1/2"
             >
                 <div className="absolute right-0 top-0 h-[300px] w-[300px] -translate-y-1/2 translate-x-1/3 rounded-full bg-orange-500/10 blur-[80px]" />
 

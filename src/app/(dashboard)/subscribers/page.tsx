@@ -257,7 +257,7 @@ export default function SubscribersPage() {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-white flex items-center gap-2">
                         <EnvelopeSimple className="w-8 h-8 text-orange-500" />
@@ -273,7 +273,7 @@ export default function SubscribersPage() {
                         setSendResult(null);
                         setIsComposeOpen(true);
                     }}
-                    className="flex items-center gap-2 bg-gradient-to-r from-orange-500 to-orange-400 text-black px-4 py-2 rounded-xl font-bold hover:brightness-110 transition-all shadow-lg shadow-orange-500/20"
+                    className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-orange-400 px-4 py-2 font-bold text-black shadow-lg shadow-orange-500/20 transition-all hover:brightness-110 sm:w-auto"
                 >
                     <PencilSimpleLine weight="bold" />
                     Compose Email
@@ -281,7 +281,7 @@ export default function SubscribersPage() {
             </div>
 
             {/* Tabs */}
-            <div className="flex gap-1 bg-zinc-100 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/5 rounded-xl p-1 w-fit">
+            <div className="flex w-full gap-1 overflow-x-auto rounded-xl border border-zinc-200 bg-zinc-100 p-1 dark:border-white/5 dark:bg-zinc-900/50 sm:w-fit">
                 <button
                     onClick={() => setActiveTab('subscribers')}
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${activeTab === 'subscribers'
@@ -504,7 +504,7 @@ export default function SubscribersPage() {
                             onClick={() => setIsComposeOpen(false)} />
 
                         <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-white/10 rounded-3xl p-6 shadow-2xl z-50 overflow-hidden max-h-[90vh] overflow-y-auto transition-colors duration-300">
+                            className="fixed inset-x-3 top-1/2 z-50 max-h-[90dvh] w-auto -translate-y-1/2 overflow-y-auto rounded-3xl border border-zinc-200 bg-white p-5 shadow-2xl transition-colors duration-300 dark:border-white/10 dark:bg-zinc-950 sm:left-1/2 sm:right-auto sm:w-full sm:max-w-lg sm:-translate-x-1/2 sm:p-6">
                             <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-orange-500/10 blur-[80px] rounded-full pointer-events-none -translate-y-1/2 translate-x-1/3" />
 
                             <div className="relative z-10">
@@ -623,7 +623,7 @@ export default function SubscribersPage() {
                             onClick={() => setViewingEmail(null)} />
 
                         <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-white/10 rounded-3xl p-6 shadow-2xl z-50 overflow-hidden max-h-[90vh] overflow-y-auto transition-colors duration-300">
+                            className="fixed inset-x-3 top-1/2 z-50 max-h-[90dvh] w-auto -translate-y-1/2 overflow-y-auto rounded-3xl border border-zinc-200 bg-white p-5 shadow-2xl transition-colors duration-300 dark:border-white/10 dark:bg-zinc-950 sm:left-1/2 sm:right-auto sm:w-full sm:max-w-lg sm:-translate-x-1/2 sm:p-6">
                             <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-blue-500/10 blur-[80px] rounded-full pointer-events-none -translate-y-1/2 translate-x-1/3" />
 
                             <div className="relative z-10">

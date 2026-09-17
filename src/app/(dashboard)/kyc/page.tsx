@@ -152,12 +152,12 @@ export default function KYCPage() {
             </div>
 
             {/* Status Tabs */}
-            <div className="flex gap-2">
+            <div className="flex gap-2 overflow-x-auto pb-1">
                 {STATUS_TABS.map(tab => (
                     <button
                         key={tab.value}
                         onClick={() => setActiveStatus(tab.value)}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        className={`flex shrink-0 items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                             activeStatus === tab.value
                                 ? 'bg-orange-500 text-white'
                                 : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'

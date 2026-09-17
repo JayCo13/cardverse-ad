@@ -19,3 +19,21 @@ body {
   background: var(--background);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Admin data tables remain fully usable on narrow screens. Their containing
+   panels already scroll horizontally; the minimum width prevents crushed
+   labels, amounts and action buttons. */
+.admin-main .overflow-x-auto {
+  overscroll-behavior-inline: contain;
+  scrollbar-width: thin;
+}
+
+@media (max-width: 767px) {
+  .admin-main table {
+    min-width: 42rem;
+  }
+
+  .admin-main h1 {
+    line-height: 1.2;
+  }
+}
