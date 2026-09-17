@@ -22,6 +22,10 @@ export async function GET(request: NextRequest) {
             .select('id', { count: 'exact', head: true })
             .eq('status', 'pending');
 
+        const { count: totalSellers } = await supabase
+            .from('seller_verifications')
+            .select('id', { count: 'exact', head: true });
+
         const { count: pendingWithdrawals } = await supabase
             .from('wallet_withdrawals')
             .select('id', { count: 'exact', head: true })
@@ -203,6 +207,7 @@ export async function GET(request: NextRequest) {
             notifications: notifications.slice(0, limit),
             unreadCount,
             badges: {
+                totalSellers: totalSellers || 0,
                 pendingKYC: pendingKYC || 0,
                 pendingWithdrawals: pendingWithdrawals || 0,
                 openContactRequests: openContactRequests || 0,

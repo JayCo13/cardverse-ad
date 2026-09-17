@@ -16,6 +16,7 @@ export type AdminNotification = {
 };
 
 export type AdminNotificationBadges = {
+    totalSellers: number;
     pendingKYC: number;
     pendingWithdrawals: number;
     openContactRequests: number;
@@ -31,6 +32,7 @@ type AdminNotificationsContextValue = {
 };
 
 const EMPTY_BADGES: AdminNotificationBadges = {
+    totalSellers: 0,
     pendingKYC: 0,
     pendingWithdrawals: 0,
     openContactRequests: 0,
