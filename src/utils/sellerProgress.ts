@@ -4,10 +4,11 @@
  * and the client only renders it.
  *
  * Step order mirrors the consumer /sell wizard:
- *   identity (Didit eKYC) → bank (NAPAS lookup) → submit → review → ready
+ *   identity (Didit eKYC) → bank (NAPAS lookup) → submit → review
+ *   → shop (pickup address + carriers) → listing (first card posted)
  */
 
-export type StepKey = 'identity' | 'bank' | 'submit' | 'review' | 'ready';
+export type StepKey = 'identity' | 'bank' | 'submit' | 'review' | 'shop' | 'listing';
 export type StepState = 'done' | 'current' | 'failed' | 'upcoming';
 
 export type SellerStage =
@@ -20,7 +21,8 @@ export type SellerStage =
     | 'pending'
     | 'rejected'
     | 'approved'
-    | 'ready';
+    | 'ready'
+    | 'listed';
 
 export type SellerProgressStep = {
     key: StepKey;
@@ -61,7 +63,36 @@ export type ProgressBlock = {
 export type ProgressProfile = {
     address_province_id: number | null;
     address_ward_code: string | null;
+    shipping_carriers: string[] | null;
+    carrier_coverage: { carriers?: string[] | null } | null;
 };
+
+export type ProgressListings = {
+    total: number;
+    active: number;
+};
+
+// Mirror of cardverse-web/src/lib/shipping-carriers.ts — couriers a shop may
+// tick, and how many it needs before it can sell (a backup for route swaps).
+const OFFERABLE_COURIERS = ['ghn', 'shopee', 'best', 'jnt'];
+const MIN_SHOP_CARRIERS = 2;
+
+function minShopCarriers(collecting: string[] | null | undefined): number {
+    const available = Array.isArray(collecting)
+        ? OFFERABLE_COURIERS.filter((code) => collecting.includes(code)).length
+        : OFFERABLE_COURIERS.length;
+    return Math.max(1, Math.min(MIN_SHOP_CARRIERS, available));
+}
+
+/** Same gate as /sell/create: pickup address saved and enough bookable couriers ticked. */
+export function shopReadiness(profile: ProgressProfile | null): { address: boolean; shipping: boolean; carriers: string[]; required: number } {
+    const address = Boolean(profile?.address_province_id && profile?.address_ward_code);
+    const collecting = profile?.carrier_coverage?.carriers ?? null;
+    const carriers = (profile?.shipping_carriers ?? []).filter((code) =>
+        OFFERABLE_COURIERS.includes(code) && (collecting === null || collecting.includes(code)));
+    const required = minShopCarriers(collecting);
+    return { address, shipping: carriers.length >= required, carriers, required };
+}
 
 // Didit vocabulary — keep in sync with cardverse-web/src/lib/kyc/types.ts
 const KYC_IN_FLIGHT = new Set(['Not Started', 'In Progress', 'Awaiting User', 'Resubmitted']);
@@ -72,7 +103,8 @@ const STEP_LABELS: Record<StepKey, string> = {
     bank: 'Ngân hàng',
     submit: 'Nộp hồ sơ',
     review: 'Duyệt',
-    ready: 'Sẵn sàng bán',
+    shop: 'Thiết lập shop',
+    listing: 'Đăng bài',
 };
 
 const BLOCK_AXIS_LABEL: Record<ProgressBlock['matched_axis'], string> = {
@@ -100,8 +132,9 @@ export function computeSellerProgress(input: {
     kycSession: ProgressKycSession | null;
     block: ProgressBlock | null;
     profile: ProgressProfile | null;
+    listings: ProgressListings | null;
 }): SellerProgress {
-    const { verification, kycSession, block, profile } = input;
+    const { verification, kycSession, block, profile, listings } = input;
 
     // --- Has a seller_verifications row: identity + bank happened before submit ---
     if (verification) {
@@ -140,26 +173,43 @@ export function computeSellerProgress(input: {
         const reviewDetail = verification.auto_approved
             ? 'Tự động duyệt'
             : `Duyệt tay${verification.reviewed_at ? ` lúc ${formatTime(verification.reviewed_at)}` : ''}`;
-        const hasAddress = Boolean(profile?.address_province_id && profile?.address_ward_code);
-        if (hasAddress) {
+        const base = { identity: 'done', bank: bankVerified ? 'done' : 'failed', submit: 'done', review: 'done' } as const;
+        const baseDetails = { bank: bankDetail, submit: submitDetail, review: reviewDetail };
+
+        const shop = shopReadiness(profile);
+        if (!shop.address || !shop.shipping) {
+            const missing = [
+                !shop.address && 'chưa có địa chỉ lấy hàng',
+                !shop.shipping && (shop.carriers.length === 0
+                    ? 'chưa chọn đơn vị vận chuyển'
+                    : `mới chọn ${shop.carriers.length}/${shop.required} đơn vị vận chuyển`),
+            ].filter(Boolean).join(', ');
+            const shopDetail = missing.charAt(0).toUpperCase() + missing.slice(1);
             return {
-                stage: 'ready',
-                stageLabel: 'Sẵn sàng đăng bán',
-                detail: reviewDetail,
-                steps: buildSteps(
-                    { identity: 'done', bank: bankVerified ? 'done' : 'failed', submit: 'done', review: 'done', ready: 'done' },
-                    { bank: bankDetail, submit: submitDetail, review: reviewDetail, ready: 'Đã có địa chỉ lấy hàng' },
-                ),
+                stage: 'approved',
+                stageLabel: 'Đã duyệt · chưa thiết lập xong shop',
+                detail: shopDetail,
+                steps: buildSteps({ ...base, shop: 'current' }, { ...baseDetails, shop: shopDetail }),
+            };
+        }
+
+        const shopDetail = `Địa chỉ + ${shop.carriers.length} ĐVVC (${shop.carriers.map((code) => code.toUpperCase()).join(', ')})`;
+        const total = listings?.total ?? 0;
+        const active = listings?.active ?? 0;
+        if (total > 0) {
+            const listingDetail = `${total} bài đăng · ${active} đang bán`;
+            return {
+                stage: 'listed',
+                stageLabel: 'Đã đăng bài',
+                detail: listingDetail,
+                steps: buildSteps({ ...base, shop: 'done', listing: 'done' }, { ...baseDetails, shop: shopDetail, listing: listingDetail }),
             };
         }
         return {
-            stage: 'approved',
-            stageLabel: 'Đã duyệt · chưa có địa chỉ lấy hàng',
-            detail: 'Chưa thể đăng bán cho tới khi cập nhật địa chỉ',
-            steps: buildSteps(
-                { identity: 'done', bank: bankVerified ? 'done' : 'failed', submit: 'done', review: 'done', ready: 'current' },
-                { bank: bankDetail, submit: submitDetail, review: reviewDetail, ready: 'Chưa có địa chỉ lấy hàng' },
-            ),
+            stage: 'ready',
+            stageLabel: 'Sẵn sàng bán · chưa đăng bài nào',
+            detail: shopDetail,
+            steps: buildSteps({ ...base, shop: 'done', listing: 'current' }, { ...baseDetails, shop: shopDetail, listing: 'Chưa có bài đăng' }),
         };
     }
 

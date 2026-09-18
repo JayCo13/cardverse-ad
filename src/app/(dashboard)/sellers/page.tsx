@@ -80,7 +80,8 @@ const STAGE_TEXT: Record<SellerProgress["stage"], string> = {
   pending: "text-amber-700 dark:text-amber-400",
   rejected: "text-red-600 dark:text-red-400",
   approved: "text-orange-600 dark:text-orange-400",
-  ready: "text-emerald-700 dark:text-emerald-400",
+  ready: "text-orange-600 dark:text-orange-400",
+  listed: "text-emerald-700 dark:text-emerald-400",
 };
 
 const IN_FLIGHT_STAGES = new Set<SellerProgress["stage"]>(["identity_in_progress", "identity_review", "pending"]);
