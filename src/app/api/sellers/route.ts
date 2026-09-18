@@ -5,6 +5,7 @@ import {
     computeSellerProgress,
     type ProgressBlock,
     type ProgressKycSession,
+    type ProgressListings,
     type ProgressProfile,
     type SellerProgress,
 } from '@/utils/sellerProgress';
@@ -25,6 +26,7 @@ type SellerVerificationRow = {
 };
 
 type KycSessionRow = ProgressKycSession & { user_id: string };
+type CardRow = { seller_id: string; status: string };
 type BlockRow = ProgressBlock & { user_id: string };
 
 type SellerProfile = ProgressProfile & {
@@ -108,12 +110,30 @@ export async function GET(request: NextRequest) {
         for (let offset = 0; offset < userIds.length; offset += 500) {
             const { data, error } = await supabase
                 .from('profiles')
-                .select('id,display_name,email,seller_verified,address_province_id,address_ward_code')
+                .select('id,display_name,email,seller_verified,address_province_id,address_ward_code,shipping_carriers,carrier_coverage')
                 .in('id', userIds.slice(offset, offset + 500));
             if (error) throw error;
             profiles.push(...((data || []) as SellerProfile[]));
         }
         const profileById = new Map(profiles.map((profile) => [profile.id, profile]));
+
+        // Listing counts per seller — only approved sellers can have cards, so
+        // scope the scan to the users we already know about.
+        const listingsByUser = new Map<string, ProgressListings>();
+        for (let offset = 0; offset < userIds.length; offset += 500) {
+            const chunk = userIds.slice(offset, offset + 500);
+            const cards = await fetchAll<CardRow>((from, to) => supabase
+                .from('cards')
+                .select('seller_id,status')
+                .in('seller_id', chunk)
+                .range(from, to));
+            for (const card of cards) {
+                const entry = listingsByUser.get(card.seller_id) || { total: 0, active: 0 };
+                entry.total += 1;
+                if (card.status === 'active') entry.active += 1;
+                listingsByUser.set(card.seller_id, entry);
+            }
+        }
 
         const sellers: SellerListItem[] = verifications.map((verification) => ({
             ...verification,
@@ -123,6 +143,7 @@ export async function GET(request: NextRequest) {
                 kycSession: kycByUser.get(verification.user_id) || null,
                 block: blockByUser.get(verification.user_id) || null,
                 profile: profileById.get(verification.user_id) || null,
+                listings: listingsByUser.get(verification.user_id) || null,
             }),
         }));
 
@@ -143,7 +164,7 @@ export async function GET(request: NextRequest) {
                 reviewed_at: null,
                 rejection_reason: null,
                 user: profileById.get(userId) || null,
-                progress: computeSellerProgress({ verification: null, kycSession, block, profile: profileById.get(userId) || null }),
+                progress: computeSellerProgress({ verification: null, kycSession, block, profile: profileById.get(userId) || null, listings: null }),
             });
         }
         sellers.sort((a, b) => b.created_at.localeCompare(a.created_at));
