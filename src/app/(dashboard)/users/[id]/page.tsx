@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import {
     ArrowLeft, User as UserIcon, EnvelopeSimple, Clock,
     ShieldCheck, Crown, Scan, CheckCircle, WarningCircle,
-    CircleNotch, Key, Gift, Timer, CreditCard, X
+    CircleNotch, Key, Gift, Timer, CreditCard, X, Pulse,
+    Storefront, HandCoins, ShoppingBag, Wallet, Bank, IdentificationCard
 } from "@phosphor-icons/react";
 
 interface UserDetailsProps {
@@ -40,7 +41,40 @@ interface UserData {
         thisYear: number;
         lastResetDate: string | null;
     } | null;
+    activityStats: {
+        listings: number;
+        offers: number;
+        orders: number;
+        walletTransactions: number;
+        withdrawals: number;
+    };
+    recentActivity: Array<{
+        id: string;
+        type: 'account' | 'subscription' | 'listing' | 'offer' | 'order' | 'wallet' | 'withdrawal' | 'kyc';
+        title: string;
+        description: string | null;
+        status: string | null;
+        amount: number | null;
+        createdAt: string;
+    }>;
 }
+
+const formatVnd = (amount: number) => new Intl.NumberFormat('vi-VN', {
+    style: 'currency',
+    currency: 'VND',
+    maximumFractionDigits: 0,
+}).format(amount);
+
+const activityIcon = (type: UserData['recentActivity'][number]['type']) => {
+    if (type === 'listing') return Storefront;
+    if (type === 'offer') return HandCoins;
+    if (type === 'order') return ShoppingBag;
+    if (type === 'wallet') return Wallet;
+    if (type === 'withdrawal') return Bank;
+    if (type === 'kyc') return IdentificationCard;
+    if (type === 'subscription') return Crown;
+    return Key;
+};
 
 export default function UserDetailsPage({ params }: UserDetailsProps) {
     const router = useRouter();
@@ -132,7 +166,7 @@ export default function UserDetailsPage({ params }: UserDetailsProps) {
         );
     }
 
-    const { authInfo, profile, subscriptions, scanStats } = data;
+    const { authInfo, profile, subscriptions, scanStats, activityStats, recentActivity } = data;
 
     return (
         <div className="space-y-6 pb-12">
@@ -339,6 +373,77 @@ export default function UserDetailsPage({ params }: UserDetailsProps) {
                             </div>
                         </div>
                     </div>
+                </div>
+
+                {/* Full user activity, sourced from marketplace and account tables. */}
+                <div className="col-span-1 lg:col-span-3 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm transition-colors dark:border-white/5 dark:bg-zinc-900/50 sm:p-6">
+                    <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-cyan-200 bg-cyan-50/50 dark:border-cyan-500/20 dark:bg-cyan-500/10">
+                                <Pulse className="h-5 w-5 text-cyan-600 dark:text-cyan-400" weight="bold" />
+                            </div>
+                            <div>
+                                <h3 className="font-medium text-zinc-800 dark:text-zinc-300">Recent Activity</h3>
+                                <p className="text-xs text-zinc-500">Account, marketplace, wallet and seller actions</p>
+                            </div>
+                        </div>
+                        <span className="text-xs text-zinc-500">Showing the latest {recentActivity.length} events</span>
+                    </div>
+
+                    <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                        {[
+                            ['Listings', activityStats.listings],
+                            ['Offers', activityStats.offers],
+                            ['Orders', activityStats.orders],
+                            ['Wallet entries', activityStats.walletTransactions],
+                            ['Withdrawals', activityStats.withdrawals],
+                        ].map(([label, value]) => (
+                            <div key={label} className="rounded-xl border border-zinc-200 bg-zinc-50 p-3 dark:border-white/5 dark:bg-zinc-950/50">
+                                <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">{label}</p>
+                                <p className="mt-1 text-2xl font-bold text-zinc-900 dark:text-white">{value}</p>
+                            </div>
+                        ))}
+                    </div>
+
+                    {recentActivity.length > 0 ? (
+                        <div className="max-h-[560px] space-y-2 overflow-y-auto pr-1 custom-scrollbar">
+                            {recentActivity.map((activity) => {
+                                const ActivityIcon = activityIcon(activity.type);
+                                return (
+                                    <div key={activity.id} className="flex items-start gap-3 rounded-xl border border-zinc-200 bg-zinc-50/70 p-3 transition-colors hover:border-zinc-300 dark:border-white/5 dark:bg-zinc-950/40 dark:hover:border-white/10 sm:p-4">
+                                        <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-zinc-200 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+                                            <ActivityIcon className="h-4.5 w-4.5" weight="bold" />
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                                                <p className="font-semibold text-zinc-900 dark:text-zinc-100">{activity.title}</p>
+                                                <time className="shrink-0 text-xs text-zinc-500" dateTime={activity.createdAt}>
+                                                    {new Date(activity.createdAt).toLocaleString()}
+                                                </time>
+                                            </div>
+                                            <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
+                                                {activity.description && <span className="break-words">{activity.description}</span>}
+                                                {activity.status && (
+                                                    <span className="rounded-full border border-zinc-300 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide dark:border-white/10">
+                                                        {activity.status}
+                                                    </span>
+                                                )}
+                                                {activity.amount !== null && (
+                                                    <span className={`font-mono font-semibold ${activity.amount < 0 ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                                                        {formatVnd(activity.amount)}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    ) : (
+                        <div className="flex min-h-36 items-center justify-center rounded-xl border border-dashed border-zinc-300 text-sm text-zinc-500 dark:border-white/10">
+                            No recorded activity
+                        </div>
+                    )}
                 </div>
 
             </div>
