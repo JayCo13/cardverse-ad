@@ -37,6 +37,15 @@ interface UserStats {
     admins: number;
 }
 
+// Presentation-only figures for /users. The API and user list stay live.
+const DEMO_USER_STATS = {
+    total: 568,
+    newToday: 8,
+    new7d: 42,
+    new30d: 133,
+    active30d: 317,
+};
+
 function formatRelativeTime(dateString: string): string {
     const date = new Date(dateString);
     const now = new Date();
@@ -87,6 +96,12 @@ export default function UsersPage() {
         neverActive: 0,
         admins: 0,
     });
+    const [demoStatsEnabled, setDemoStatsEnabled] = useState(true);
+    const displayedStats = demoStatsEnabled ? { ...stats, ...DEMO_USER_STATS } : stats;
+
+    useEffect(() => {
+        setDemoStatsEnabled(new URLSearchParams(window.location.search).get("realStats") !== "1");
+    }, []);
 
     // Filter & Search
     const [searchTerm, setSearchTerm] = useState("");
@@ -290,6 +305,7 @@ export default function UsersPage() {
                         User Management
                     </h1>
                     <p className="text-zinc-500 dark:text-zinc-400 mt-1">Manage system administrators and users.</p>
+                    {demoStatsEnabled && <p className="mt-1 text-xs font-medium text-amber-500">Số liệu minh họa trên 4 thẻ · Danh sách tài khoản là dữ liệu thật</p>}
                 </div>
 
                 {isModerator && (
@@ -328,7 +344,7 @@ export default function UsersPage() {
                     <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Tổng người dùng</p>
                     <div className="mt-1 flex items-baseline gap-2">
                         <span className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-white">
-                            {isLoading && stats.total === 0 ? "..." : stats.total.toLocaleString()}
+                            {isLoading && !demoStatsEnabled && stats.total === 0 ? "..." : displayedStats.total.toLocaleString()}
                         </span>
                         <span className="text-xs text-zinc-400">tài khoản</span>
                     </div>
@@ -350,9 +366,9 @@ export default function UsersPage() {
                         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500">
                             <UserPlus weight="fill" className="h-5 w-5" />
                         </div>
-                        {stats.newToday > 0 ? (
+                        {displayedStats.newToday > 0 ? (
                             <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
-                                +{stats.newToday} hôm nay
+                                +{displayedStats.newToday} hôm nay
                             </span>
                         ) : (
                             <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
@@ -363,7 +379,7 @@ export default function UsersPage() {
                     <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">User mới gần đây</p>
                     <div className="mt-1 flex items-baseline gap-2">
                         <span className="text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400">
-                            {isLoading && stats.new7d === 0 ? "..." : stats.new7d.toLocaleString()}
+                            {isLoading && !demoStatsEnabled && stats.new7d === 0 ? "..." : displayedStats.new7d.toLocaleString()}
                         </span>
                         <span className="text-xs text-zinc-400">trong 7 ngày</span>
                     </div>
@@ -392,7 +408,7 @@ export default function UsersPage() {
                     <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">User mới trong tháng</p>
                     <div className="mt-1 flex items-baseline gap-2">
                         <span className="text-2xl font-bold tracking-tight text-sky-600 dark:text-sky-400">
-                            {isLoading && stats.new30d === 0 ? "..." : stats.new30d.toLocaleString()}
+                            {isLoading && !demoStatsEnabled && stats.new30d === 0 ? "..." : displayedStats.new30d.toLocaleString()}
                         </span>
                         <span className="text-xs text-zinc-400">trong 30 ngày</span>
                     </div>
@@ -421,7 +437,7 @@ export default function UsersPage() {
                     <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Đang hoạt động</p>
                     <div className="mt-1 flex items-baseline gap-2">
                         <span className="text-2xl font-bold tracking-tight text-purple-600 dark:text-purple-400">
-                            {isLoading && stats.active30d === 0 ? "..." : stats.active30d.toLocaleString()}
+                            {isLoading && !demoStatsEnabled && stats.active30d === 0 ? "..." : displayedStats.active30d.toLocaleString()}
                         </span>
                         <span className="text-xs text-zinc-400">trong 30 ngày</span>
                     </div>
